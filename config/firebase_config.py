@@ -2,12 +2,21 @@ import firebase_admin
 from firebase_admin import credentials, auth
 from django.conf import settings
 import os
+import json
+import base64
 
 # Initialize Firebase Admin SDK
-cred_path = os.path.join(settings.BASE_DIR, settings.FIREBASE_CREDENTIALS_PATH)
+if os.getenv('FIREBASE_CREDENTIALS_BASE64'):
+    # Production: decode from base64 env var
+    cred_json = base64.b64decode(os.getenv('FIREBASE_CREDENTIALS_BASE64')).decode('utf-8')
+    cred_dict = json.loads(cred_json)
+    cred = credentials.Certificate(cred_dict)
+else:
+    # Local: use file
+    cred_path = os.path.join(settings.BASE_DIR, settings.FIREBASE_CREDENTIALS_PATH)
+    cred = credentials.Certificate(cred_path)
 
 if not firebase_admin._apps:
-    cred = credentials.Certificate(cred_path)
     firebase_admin.initialize_app(cred)
 
 def verify_firebase_token(id_token):
