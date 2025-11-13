@@ -162,16 +162,39 @@ CORS_ALLOWED_ORIGINS = config(
     cast=Csv()
 )
 CORS_ALLOW_CREDENTIALS = True
+SIMPLE_JWT = {
+    "AUTH_HEADER_TYPES": ("Bearer",),  # <<< THIS LINE IS REQUIRED
+}
+
+# CORS Configuration (Allow all for development)
+CORS_ALLOW_ALL_ORIGINS = True  # Change this in production
+
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
 
 # Firebase
 FIREBASE_CREDENTIALS_PATH = config('FIREBASE_CREDENTIALS_PATH', default='firebase-credentials.json')
 
 
 # Production settings
+# Production Security Settings
 if not DEBUG:
-    SECURE_SSL_REDIRECT = True
+    SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
-    X_FRAME_OPTIONS = 'DENY'
+    X_FRAME_OPTIONS = 'SAMEORIGIN'
+else:
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+
+# Trust Railway's proxy so HTTPS detection works
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Required when using a custom domain over HTTPS
+CSRF_TRUSTED_ORIGINS = [
+    "https://api.awm27.shop",
+    "https://*.railway.app",
+]
