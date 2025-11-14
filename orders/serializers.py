@@ -6,9 +6,18 @@ class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
         fields = [
-            'id', 'product_name', 'base_price', 'display_price',
-            'commission_rate', 'quantity', 'size', 'color',
-            'item_subtotal', 'commission_amount', 'seller_amount'
+            'id',
+            'product',              # ⚠️ ADD THIS - Product ID (foreign key)
+            'product_name',
+            'base_price',
+            'display_price',
+            'commission_rate',
+            'quantity',
+            'size',
+            'color',
+            'item_subtotal',
+            'commission_amount',
+            'seller_amount'
         ]
 
 
