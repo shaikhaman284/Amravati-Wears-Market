@@ -59,7 +59,8 @@ class ShopDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'shop_name', 'address', 'city', 'pincode', 'contact_number',
             'shop_image', 'commission_rate', 'owner_name', 'product_count',
-            'recent_products', 'created_at'
+            'recent_products', 'created_at',
+            'is_approved', 'approval_status', 'rejection_reason'  # Add these three fields
         ]
 
     def get_product_count(self, obj):
