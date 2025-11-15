@@ -235,13 +235,11 @@ def update_order_status(request, order_number):
         elif new_status == 'cancelled':
             order.cancelled_at = timezone.now()
 
-            # Only restore stock if order hasn't been shipped yet
-            if current_status in ['placed', 'confirmed']:
-                # Restore stock
-                for item in order.items.all():
-                    if item.product:
-                        item.product.stock_quantity += item.quantity
-                        item.product.save()
+            # Restore stock
+            for item in order.items.all():
+                if item.product:
+                    item.product.stock_quantity += item.quantity
+                    item.product.save()
 
         order.save()
 
@@ -307,3 +305,49 @@ def get_seller_dashboard(request):
         })
     except:
         return Response({'error': 'Shop not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def cancel_customer_order(request, order_number):
+    """
+    Cancel order by customer (before shipping only)
+    """
+    if request.user.user_type != 'customer':
+        return Response(
+            {'error': 'Only customers can cancel their orders using this endpoint'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    try:
+        # Get order belonging to this customer
+        order = Order.objects.get(order_number=order_number, customer=request.user)
+
+        # Check if order can be cancelled
+        if order.order_status not in ['placed', 'confirmed']:
+            return Response(
+                {'error': f'Cannot cancel order with status: {order.order_status}. Orders can only be cancelled before shipping.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Update order status to cancelled
+        order.order_status = 'cancelled'
+        order.cancelled_at = timezone.now()
+
+        # Restore stock for all items
+        for item in order.items.all():
+            if item.product:
+                item.product.stock_quantity += item.quantity
+                item.product.save()
+
+        order.save()
+
+        return Response({
+            'message': 'Order cancelled successfully',
+            'order': OrderDetailSerializer(order).data
+        })
+
+    except Order.DoesNotExist:
+        return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({'error': 'Failed to cancel order'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

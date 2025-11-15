@@ -6,6 +6,7 @@ urlpatterns = [
     path('create/', views.create_order, name='create_order'),
     path('my-orders/', views.get_my_orders, name='get_my_orders'),
     path('<str:order_number>/', views.get_order_detail, name='get_order_detail'),
+    path('<str:order_number>/cancel/', views.cancel_customer_order, name='cancel_customer_order'),
 
     # Seller order endpoints
     path('seller/orders/', views.get_seller_orders, name='get_seller_orders'),
