@@ -235,11 +235,13 @@ def update_order_status(request, order_number):
         elif new_status == 'cancelled':
             order.cancelled_at = timezone.now()
 
-            # Restore stock
-            for item in order.items.all():
-                if item.product:
-                    item.product.stock_quantity += item.quantity
-                    item.product.save()
+            # Only restore stock if order hasn't been shipped yet
+            if current_status in ['placed', 'confirmed']:
+                # Restore stock
+                for item in order.items.all():
+                    if item.product:
+                        item.product.stock_quantity += item.quantity
+                        item.product.save()
 
         order.save()
 
