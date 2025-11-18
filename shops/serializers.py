@@ -34,6 +34,8 @@ class ShopSerializer(serializers.ModelSerializer):
 
 
 class ShopRegistrationSerializer(serializers.ModelSerializer):
+    shop_image = serializers.URLField(required=False, allow_null=True)
+
     class Meta:
         model = Shop
         fields = ['shop_name', 'address', 'city', 'pincode', 'contact_number', 'shop_image']

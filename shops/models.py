@@ -32,7 +32,7 @@ class Shop(models.Model):
     city = models.CharField(max_length=100, default='Amravati')
     pincode = models.CharField(max_length=6)
     contact_number = models.CharField(max_length=15)
-    shop_image = models.ImageField(upload_to='shops/', blank=True, null=True)
+    shop_image = models.URLField(max_length=500, blank=True, null=True)
 
     commission_rate = models.DecimalField(max_digits=5, decimal_places=2, default=15.00)
 
