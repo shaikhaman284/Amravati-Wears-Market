@@ -2,7 +2,6 @@ from rest_framework import serializers
 from .models import Product
 from shops.models import Category
 
-
 class ProductListSerializer(serializers.ModelSerializer):
     """For listing products (customer view)"""
     shop_name = serializers.CharField(source='shop.shop_name', read_only=True)
@@ -18,11 +17,7 @@ class ProductListSerializer(serializers.ModelSerializer):
         ]
 
     def get_main_image(self, obj):
-        if obj.image1:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.image1.url)
-        return None
+        return obj.image1 if obj.image1 else None
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):
@@ -42,15 +37,11 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         ]
 
     def get_images(self, obj):
-        request = self.context.get('request')
         images = []
         for i in range(1, 6):
             img = getattr(obj, f'image{i}')
             if img:
-                if request:
-                    images.append(request.build_absolute_uri(img.url))
-                else:
-                    images.append(img.url)
+                images.append(img)
         return images
 
 
