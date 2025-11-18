@@ -26,11 +26,11 @@ class Product(models.Model):
     colors = models.JSONField(default=list, blank=True)  # ["Red", "Blue", "Green"]
 
     # Images
-    image1 = models.ImageField(upload_to='products/', blank=True, null=True)
-    image2 = models.ImageField(upload_to='products/', blank=True, null=True)
-    image3 = models.ImageField(upload_to='products/', blank=True, null=True)
-    image4 = models.ImageField(upload_to='products/', blank=True, null=True)
-    image5 = models.ImageField(upload_to='products/', blank=True, null=True)
+    image1 = models.URLField(max_length=500, blank=True, null=True)
+    image2 = models.URLField(max_length=500, blank=True, null=True)
+    image3 = models.URLField(max_length=500, blank=True, null=True)
+    image4 = models.URLField(max_length=500, blank=True, null=True)
+    image5 = models.URLField(max_length=500, blank=True, null=True)
 
     # SEO & Filtering
     slug = models.SlugField(max_length=300, blank=True)
