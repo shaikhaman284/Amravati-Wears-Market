@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from .models import Shop, Category
 
-
 class CategorySerializer(serializers.ModelSerializer):
     subcategories = serializers.SerializerMethodField()
 
@@ -14,11 +13,11 @@ class CategorySerializer(serializers.ModelSerializer):
             return CategorySerializer(obj.subcategories.filter(is_active=True), many=True).data
         return []
 
-
 class ShopSerializer(serializers.ModelSerializer):
     owner_name = serializers.CharField(source='owner.name', read_only=True)
     owner_phone = serializers.CharField(source='owner.phone', read_only=True)
     product_count = serializers.SerializerMethodField()
+    shop_image = serializers.URLField(allow_null=True, required=False)
 
     class Meta:
         model = Shop
@@ -31,7 +30,6 @@ class ShopSerializer(serializers.ModelSerializer):
 
     def get_product_count(self, obj):
         return obj.get_product_count()
-
 
 class ShopRegistrationSerializer(serializers.ModelSerializer):
     shop_image = serializers.URLField(required=False, allow_null=True)
@@ -50,11 +48,11 @@ class ShopRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Invalid contact number")
         return value
 
-
 class ShopDetailSerializer(serializers.ModelSerializer):
     owner_name = serializers.CharField(source='owner.name', read_only=True)
     product_count = serializers.SerializerMethodField()
     recent_products = serializers.SerializerMethodField()
+    shop_image = serializers.URLField(allow_null=True, required=False)
 
     class Meta:
         model = Shop
@@ -62,7 +60,7 @@ class ShopDetailSerializer(serializers.ModelSerializer):
             'id', 'shop_name', 'address', 'city', 'pincode', 'contact_number',
             'shop_image', 'commission_rate', 'owner_name', 'product_count',
             'recent_products', 'created_at',
-            'is_approved', 'approval_status', 'rejection_reason'  # Add these three fields
+            'is_approved', 'approval_status', 'rejection_reason'
         ]
 
     def get_product_count(self, obj):
