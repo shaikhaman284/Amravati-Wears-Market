@@ -103,37 +103,17 @@ class ProductUpdateSerializer(serializers.ModelSerializer):
 
 
 class SellerProductSerializer(serializers.ModelSerializer):
+    """For sellers viewing their own products - shows both prices"""
     category_name = serializers.CharField(source='category.name', read_only=True)
     commission_amount = serializers.SerializerMethodField()
-    images = serializers.SerializerMethodField()
-    main_image = serializers.SerializerMethodField()
-    sizes = serializers.ListField(child=serializers.CharField(), required=False)
-    colors = serializers.ListField(child=serializers.CharField(), required=False)
-    description = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'slug', 'description',               # <-- Added description
-            'base_price', 'commission_rate', 'display_price', 'commission_amount',
-            'stock_quantity', 'sizes', 'colors',                # <-- Added sizes/colors
-            'images', 'main_image',
-            'category_name', 'category',                        # <-- Add category if needed
-            'average_rating', 'review_count', 'is_active', 'created_at',
-            'shop_name', 'shop_id',                             # <-- Add shop info if needed
+            'id', 'name', 'slug', 'base_price', 'display_price', 'commission_rate',
+            'commission_amount', 'stock_quantity', 'category_name', 'average_rating',
+            'review_count', 'is_active', 'created_at'
         ]
-
-    def get_images(self, obj):
-        images = []
-        for i in range(1, 6):
-            img = getattr(obj, f'image{i}')
-            if img:
-                images.append(img)
-        return images
-
-    def get_main_image(self, obj):
-        return obj.image1 if obj.image1 else ""
 
     def get_commission_amount(self, obj):
         return float(obj.get_commission_amount())
-
