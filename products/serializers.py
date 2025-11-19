@@ -106,14 +106,26 @@ class SellerProductSerializer(serializers.ModelSerializer):
     """For sellers viewing their own products - shows both prices"""
     category_name = serializers.CharField(source='category.name', read_only=True)
     commission_amount = serializers.SerializerMethodField()
+    images = serializers.SerializerMethodField()  # ✅ Add this
 
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'slug', 'base_price', 'display_price', 'commission_rate',
             'commission_amount', 'stock_quantity', 'category_name', 'average_rating',
-            'review_count', 'is_active', 'created_at'
+            'review_count', 'is_active', 'created_at',
+            # ✅ Add these fields:
+            'description', 'sizes', 'colors', 'images', 'category'
         ]
 
     def get_commission_amount(self, obj):
         return float(obj.get_commission_amount())
+
+    def get_images(self, obj):
+        """Collect all product images"""
+        images = []
+        for i in range(1, 6):
+            img = getattr(obj, f'image{i}')
+            if img:
+                images.append(img)
+        return images
