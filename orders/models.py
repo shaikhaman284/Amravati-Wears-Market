@@ -45,6 +45,7 @@ class Order(models.Model):
     # Status
     order_status = models.CharField(max_length=15, choices=ORDER_STATUS, default='placed')
     payment_status = models.CharField(max_length=10, choices=PAYMENT_STATUS, default='cod')
+    cancellation_reason = models.TextField(blank=True, null=True)  # ✅ OPTIONAL: Add this
 
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

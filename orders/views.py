@@ -178,6 +178,8 @@ def get_seller_orders(request):
         return Response({'error': 'Shop not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
+# In orders/views.py - Modify the update_order_status function
+
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated])
 def update_order_status(request, order_number):
@@ -234,6 +236,11 @@ def update_order_status(request, order_number):
             order.payment_status = 'paid'  # Mark as paid on delivery
         elif new_status == 'cancelled':
             order.cancelled_at = timezone.now()
+
+            # ✅ OPTIONAL: Store cancellation reason if provided
+            cancellation_reason = request.data.get('reason')
+            if cancellation_reason:
+                order.cancellation_reason = cancellation_reason
 
             # Restore stock
             for item in order.items.all():

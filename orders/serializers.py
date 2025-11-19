@@ -3,12 +3,15 @@ from .models import Order, OrderItem
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
+    product_image = serializers.SerializerMethodField()
+
     class Meta:
         model = OrderItem
         fields = [
             'id',
-            'product',              # ⚠️ ADD THIS - Product ID (foreign key)
+            'product',
             'product_name',
+            'product_image',  # ✅ For displaying images
             'base_price',
             'display_price',
             'commission_rate',
@@ -19,6 +22,12 @@ class OrderItemSerializer(serializers.ModelSerializer):
             'commission_amount',
             'seller_amount'
         ]
+
+    def get_product_image(self, obj):
+        """Get the main image of the product"""
+        if obj.product and obj.product.image1:
+            return obj.product.image1
+        return None
 
 
 class OrderListSerializer(serializers.ModelSerializer):
@@ -33,8 +42,8 @@ class OrderListSerializer(serializers.ModelSerializer):
             'id', 'order_number', 'shop_name', 'customer_name',
             'items_count', 'total_amount', 'order_status',
             'payment_status', 'created_at',
-            'seller_payout_amount',  # Add this
-            'commission_amount'      # Add this
+            'seller_payout_amount',
+            'commission_amount'
         ]
 
     def get_items_count(self, obj):
@@ -46,6 +55,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     shop_name = serializers.CharField(source='shop.shop_name', read_only=True)
     shop_contact = serializers.CharField(source='shop.contact_number', read_only=True)
     items = OrderItemSerializer(many=True, read_only=True)
+    net_cash_to_keep = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -55,10 +65,16 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             'city', 'pincode', 'landmark',
             'subtotal', 'cod_fee', 'total_amount',
             'commission_amount', 'seller_payout_amount',
+            'net_cash_to_keep',
             'order_status', 'payment_status',
             'items', 'created_at', 'confirmed_at', 'shipped_at',
-            'delivered_at', 'cancelled_at'
+            'delivered_at', 'cancelled_at',
+            'cancellation_reason'  # ✅ OPTIONAL: Include if you added the field
         ]
+
+    def get_net_cash_to_keep(self, obj):
+        """Calculate net cash seller keeps after collecting COD"""
+        return float(obj.total_amount - obj.commission_amount - obj.cod_fee)
 
 
 class OrderCreateSerializer(serializers.Serializer):
@@ -90,3 +106,4 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
     order_status = serializers.ChoiceField(
         choices=['placed', 'confirmed', 'shipped', 'delivered', 'cancelled']
     )
+    reason = serializers.CharField(max_length=500, required=False, allow_blank=True)  # ✅ OPTIONAL
