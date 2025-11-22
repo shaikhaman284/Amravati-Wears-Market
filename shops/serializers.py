@@ -3,10 +3,11 @@ from .models import Shop, Category
 
 class CategorySerializer(serializers.ModelSerializer):
     subcategories = serializers.SerializerMethodField()
+    parent_name = serializers.CharField(source='parent.name', read_only=True, allow_null=True)
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug', 'parent', 'image', 'subcategories', 'is_active']
+        fields = ['id', 'name', 'slug', 'parent', 'parent_name', 'image', 'subcategories', 'is_active']
 
     def get_subcategories(self, obj):
         if obj.subcategories.exists():

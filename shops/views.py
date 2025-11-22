@@ -114,11 +114,12 @@ def get_shop_detail(request, shop_id):
 @permission_classes([AllowAny])
 def list_categories(request):
     """
-    List all categories with subcategories (public)
+    List all categories (public)
+    Returns all categories including parent and subcategories
     """
-    # Get only parent categories
-    parent_categories = Category.objects.filter(parent=None, is_active=True)
-    serializer = CategorySerializer(parent_categories, many=True)
+    # Return all active categories - seller app needs both parent and subcategories
+    categories = Category.objects.filter(is_active=True).order_by('parent__id', 'name')
+    serializer = CategorySerializer(categories, many=True)
     return Response(serializer.data)
 
 

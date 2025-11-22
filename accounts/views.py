@@ -70,6 +70,7 @@ def register_or_login(request):
     }, status=status.HTTP_200_OK)
 
 
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def verify_token(request):
