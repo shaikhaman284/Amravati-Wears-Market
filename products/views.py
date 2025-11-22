@@ -28,6 +28,32 @@ def list_products(request):
     Query params:
     - category: filter by category ID
     - shop: filter by shop ID
+    - search: search in name/description
+    - min_price, max_price: price range filter (based on display_price)
+    - sort: 'price_low', 'price_high', 'newest', 'popular'
+    """
+    products = Product.objects.filter(is_active=True, shop__is_approved=True)
+
+    # Filter by category (include subcategories if parent category is selected)
+    category_id = request.query_params.get('category')
+    if category_id:
+        from shops.models import Category
+        try:
+            category = Category.objects.get(id=category_id)
+            # Get all subcategory IDs
+            subcategory_ids = category.subcategories.values_list('id', flat=True)
+            # Filter by selected category OR its subcategories
+            if subcategory_ids:
+                products = products.filter(Q(category_id=category_id) | Q(category_id__in=subcategory_ids))
+            else:
+                products = products.filter(category_id=category_id)
+        except Category.DoesNotExist:
+            products = products.filter(category_id=category_id)
+
+    # Filter by shop
+    shop_id = request.query_params.get('shop')
+    if shop_id:
+        products = products.filter(shop_id=shop_id)
 
     # Search
     search = request.query_params.get('search')
