@@ -28,21 +28,6 @@ def list_products(request):
     Query params:
     - category: filter by category ID
     - shop: filter by shop ID
-    - search: search in name/description
-    - min_price, max_price: price range filter (based on display_price)
-    - sort: 'price_low', 'price_high', 'newest', 'popular'
-    """
-    products = Product.objects.filter(is_active=True, shop__is_approved=True)
-
-    # Filter by category
-    category_id = request.query_params.get('category')
-    if category_id:
-        products = products.filter(category_id=category_id)
-
-    # Filter by shop
-    shop_id = request.query_params.get('shop')
-    if shop_id:
-        products = products.filter(shop_id=shop_id)
 
     # Search
     search = request.query_params.get('search')
