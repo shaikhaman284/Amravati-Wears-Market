@@ -147,12 +147,20 @@ def get_category_detail(request, category_id):
 def get_platform_stats(request):
     """
     Get platform statistics for home page
-    Returns total shops, products, orders, and unique customers
+    Returns total shops, products, orders, unique customers, and site visitors
     """
+    from .models import SiteVisitor
+    
+    # Record this visit
+    ip_address = request.META.get('REMOTE_ADDR', '0.0.0.0')
+    user_agent = request.META.get('HTTP_USER_AGENT', '')
+    SiteVisitor.record_visit(ip_address, user_agent)
+    
     stats = {
         'total_shops': Shop.objects.filter(is_approved=True).count(),
         'total_products': Product.objects.filter(is_active=True).count(),
         'total_orders': Order.objects.count(),
-        'total_customers': Order.objects.values('customer_phone').distinct().count()
+        'total_customers': Order.objects.values('customer_phone').distinct().count(),
+        'total_visitors': SiteVisitor.get_unique_visitors_count()
     }
     return Response(stats)
