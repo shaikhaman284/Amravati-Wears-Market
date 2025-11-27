@@ -7,6 +7,8 @@ from .serializers import (
     ShopSerializer, ShopRegistrationSerializer, ShopDetailSerializer,
     CategorySerializer
 )
+from products.models import Product
+from orders.models import Order
 
 
 @api_view(['POST'])
@@ -138,3 +140,19 @@ def get_category_detail(request, category_id):
             {'error': 'Category not found'},
             status=status.HTTP_404_NOT_FOUND
         )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_platform_stats(request):
+    """
+    Get platform statistics for home page
+    Returns total shops, products, orders, and unique customers
+    """
+    stats = {
+        'total_shops': Shop.objects.filter(is_approved=True).count(),
+        'total_products': Product.objects.filter(is_active=True).count(),
+        'total_orders': Order.objects.count(),
+        'total_customers': Order.objects.values('customer_phone').distinct().count()
+    }
+    return Response(stats)

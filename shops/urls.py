@@ -14,4 +14,7 @@ urlpatterns = [
     # Categories
     path('categories/', views.list_categories, name='list_categories'),
     path('categories/<int:category_id>/', views.get_category_detail, name='get_category_detail'),
+    
+    # Platform stats
+    path('stats/', views.get_platform_stats, name='get_platform_stats'),
 ]
