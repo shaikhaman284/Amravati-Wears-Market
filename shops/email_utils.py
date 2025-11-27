@@ -21,13 +21,13 @@ class EmailService:
         resend.api_key = self.api_key
 
     def send_single_email(
-            self,
-            to_email: str,
-            subject: str,
-            message: str,
-            from_email: Optional[str] = None,
-            html_content: Optional[str] = None,
-            retry_count: int = 3
+        self,
+        to_email: str,
+        subject: str,
+        message: str,
+        from_email: Optional[str] = None,
+        html_content: Optional[str] = None,
+        retry_count: int = 3
     ) -> Tuple[bool, Optional[str]]:
         """
         Send a single email with retry logic
@@ -44,11 +44,10 @@ class EmailService:
             Tuple of (success: bool, error_message: Optional[str])
         """
         if not from_email:
-            from_email = getattr(
-                settings,
-                'RESEND_FROM_EMAIL',
-                'Amravati Wears Market <onboarding@resend.dev>'
-            )
+            # Try RESEND_FROM_EMAIL first, then DEFAULT_FROM_EMAIL, then fallback
+            from_email = getattr(settings, 'RESEND_FROM_EMAIL', None) or \
+                        getattr(settings, 'DEFAULT_FROM_EMAIL', None) or \
+                        'Amravati Wears Market <onboarding@resend.dev>'
 
         params = {
             "from": from_email,
@@ -84,14 +83,14 @@ class EmailService:
         return False, "Unknown error"
 
     def send_bulk_email(
-            self,
-            recipient_list: List[str],
-            subject: str,
-            message: str,
-            from_email: Optional[str] = None,
-            html_content: Optional[str] = None,
-            batch_size: int = 10,
-            delay_between_batches: float = 1.0
+        self,
+        recipient_list: List[str],
+        subject: str,
+        message: str,
+        from_email: Optional[str] = None,
+        html_content: Optional[str] = None,
+        batch_size: int = 10,
+        delay_between_batches: float = 1.0
     ) -> Tuple[int, List[dict]]:
         """
         Send emails to multiple recipients in batches
@@ -161,10 +160,10 @@ class EmailService:
 
 # Convenience functions for backward compatibility
 def send_bulk_email(
-        subject: str,
-        message: str,
-        recipient_list: List[str],
-        html_content: Optional[str] = None
+    subject: str,
+    message: str,
+    recipient_list: List[str],
+    html_content: Optional[str] = None
 ) -> Tuple[int, List[dict]]:
     """
     Convenience function to send bulk emails
@@ -192,10 +191,10 @@ def send_bulk_email(
 
 
 def send_email(
-        to_email: str,
-        subject: str,
-        message: str,
-        html_content: Optional[str] = None
+    to_email: str,
+    subject: str,
+    message: str,
+    html_content: Optional[str] = None
 ) -> Tuple[bool, Optional[str]]:
     """
     Convenience function to send a single email
