@@ -164,3 +164,51 @@ def get_platform_stats(request):
         'total_visitors': SiteVisitor.get_unique_visitors_count()
     }
     return Response(stats)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def subscribe_newsletter(request):
+    """
+    Subscribe to newsletter
+    """
+    from .models import NewsletterSubscriber
+    from django.core.validators import validate_email
+    from django.core.exceptions import ValidationError
+    
+    email = request.data.get('email', '').strip().lower()
+    
+    # Validate email
+    if not email:
+        return Response(
+            {'error': 'Email address is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        validate_email(email)
+    except ValidationError:
+        return Response(
+            {'error': 'Please enter a valid email address'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Check if already subscribed
+    if NewsletterSubscriber.objects.filter(email=email).exists():
+        return Response(
+            {'message': 'You are already subscribed to our newsletter!'},
+            status=status.HTTP_200_OK
+        )
+    
+    # Create subscription
+    try:
+        NewsletterSubscriber.objects.create(email=email)
+        return Response(
+            {'message': 'Successfully subscribed to newsletter! 🎉'},
+            status=status.HTTP_201_CREATED
+        )
+    except Exception as e:
+        return Response(
+            {'error': 'Failed to subscribe. Please try again.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

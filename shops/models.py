@@ -98,3 +98,28 @@ class SiteVisitor(models.Model):
             cls.objects.create(ip_address=ip_address, user_agent=user_agent)
             return True
         return False
+
+
+class NewsletterSubscriber(models.Model):
+    """
+    Track newsletter subscribers for email marketing
+    """
+    email = models.EmailField(unique=True, db_index=True)
+    is_active = models.BooleanField(default=True)
+    subscribed_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'newsletter_subscribers'
+        ordering = ['-subscribed_at']
+        verbose_name = 'Newsletter Subscriber'
+        verbose_name_plural = 'Newsletter Subscribers'
+    
+    def __str__(self):
+        return self.email
+    
+    @classmethod
+    def get_active_subscribers(cls):
+        """
+        Get all active newsletter subscribers
+        """
+        return cls.objects.filter(is_active=True)

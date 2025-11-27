@@ -17,4 +17,7 @@ urlpatterns = [
     
     # Platform stats
     path('stats/', views.get_platform_stats, name='get_platform_stats'),
+    
+    # Newsletter
+    path('newsletter/subscribe/', views.subscribe_newsletter, name='subscribe_newsletter'),
 ]
