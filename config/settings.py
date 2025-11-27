@@ -201,11 +201,46 @@ CSRF_TRUSTED_ORIGINS = [
     "https://*.railway.app",
 ]
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'awm27shop@gmail.com'
-EMAIL_HOST_PASSWORD = 'mzue ncjr kssa molf'
-DEFAULT_FROM_EMAIL = 'awm27shop@gmail.com'  # Use the actual Gmail address
-EMAIL_TIMEOUT = 10  # ⚠️ ADD THIS - Prevents indefinite hanging
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'smtp.gmail.com'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = 'awm27shop@gmail.com'
+# EMAIL_HOST_PASSWORD = 'mzue ncjr kssa molf'
+# DEFAULT_FROM_EMAIL = 'awm27shop@gmail.com'  # Use the actual Gmail address
+# EMAIL_TIMEOUT = 10  # ⚠️ ADD THIS - Prevents indefinite hanging
+
+RESEND_API_KEY = config('RESEND_API_KEY')
+#RESEND_FROM_EMAIL = 'Amravati Wears Market <onboarding@resend.dev>'  # Use this for testing
+
+# For production with custom domain (after domain verification):
+RESEND_FROM_EMAIL = 'Amravati Wears Market <noreply@awm27.shop>'
+
+# Logging Configuration (Important for debugging)
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'shops': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
