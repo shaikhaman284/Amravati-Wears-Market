@@ -4,14 +4,16 @@ from .models import Order, OrderItem
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product_image = serializers.SerializerMethodField()
+    variant_info = serializers.SerializerMethodField()  # NEW
 
     class Meta:
         model = OrderItem
         fields = [
             'id',
             'product',
+            'variant',  # NEW
             'product_name',
-            'product_image',  # ✅ For displaying images
+            'product_image',
             'base_price',
             'display_price',
             'commission_rate',
@@ -20,13 +22,25 @@ class OrderItemSerializer(serializers.ModelSerializer):
             'color',
             'item_subtotal',
             'commission_amount',
-            'seller_amount'
+            'seller_amount',
+            'variant_info'  # NEW
         ]
 
     def get_product_image(self, obj):
         """Get the main image of the product"""
         if obj.product and obj.product.image1:
             return obj.product.image1
+        return None
+
+    def get_variant_info(self, obj):
+        """Get variant display info"""
+        if obj.variant:
+            return {
+                'id': obj.variant.id,
+                'sku': obj.variant.sku,
+                'size': obj.variant.size,
+                'color': obj.variant.color
+            }
         return None
 
 
@@ -69,7 +83,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             'order_status', 'payment_status',
             'items', 'created_at', 'confirmed_at', 'shipped_at',
             'delivered_at', 'cancelled_at',
-            'cancellation_reason'  # ✅ OPTIONAL: Include if you added the field
+            'cancellation_reason'
         ]
 
     def get_net_cash_to_keep(self, obj):
@@ -106,4 +120,4 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
     order_status = serializers.ChoiceField(
         choices=['placed', 'confirmed', 'shipped', 'delivered', 'cancelled']
     )
-    reason = serializers.CharField(max_length=500, required=False, allow_blank=True)  # ✅ OPTIONAL
+    reason = serializers.CharField(max_length=500, required=False, allow_blank=True)

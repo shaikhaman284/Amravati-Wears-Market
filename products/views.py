@@ -5,10 +5,11 @@ from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
 from decimal import Decimal
-from .models import Product
+from .models import Product, ProductVariant
 from .serializers import (
     ProductListSerializer, ProductDetailSerializer,
-    ProductCreateSerializer, ProductUpdateSerializer, SellerProductSerializer
+    ProductCreateSerializer, ProductUpdateSerializer, SellerProductSerializer,
+    ProductVariantSerializer
 )
 
 
@@ -264,3 +265,46 @@ def delete_product(request, product_id):
             {'error': 'Product not found'},
             status=status.HTTP_404_NOT_FOUND
         )
+
+
+# NEW VARIANT ENDPOINTS
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_product_variants(request, product_id):
+    """Get all variants for a product"""
+    try:
+        if request.user.user_type == 'seller':
+            product = Product.objects.get(id=product_id, shop__owner=request.user)
+        else:
+            product = Product.objects.get(id=product_id, is_active=True)
+
+        variants = product.variants.filter(is_active=True)
+        serializer = ProductVariantSerializer(variants, many=True)
+        return Response(serializer.data)
+    except Product.DoesNotExist:
+        return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_variant_stock(request, variant_id):
+    """Update variant stock (seller only)"""
+    if request.user.user_type != 'seller':
+        return Response({'error': 'Only sellers can update stock'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        variant = ProductVariant.objects.get(id=variant_id, product__shop__owner=request.user)
+        stock_quantity = request.data.get('stock_quantity')
+
+        if stock_quantity is None or int(stock_quantity) < 0:
+            return Response({'error': 'Invalid stock quantity'}, status=status.HTTP_400_BAD_REQUEST)
+
+        variant.stock_quantity = int(stock_quantity)
+        variant.save()  # This will trigger product.update_total_stock()
+
+        return Response({
+            'message': 'Stock updated successfully',
+            'variant': ProductVariantSerializer(variant).data
+        })
+    except ProductVariant.DoesNotExist:
+        return Response({'error': 'Variant not found'}, status=status.HTTP_404_NOT_FOUND)

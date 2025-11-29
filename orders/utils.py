@@ -4,7 +4,7 @@ from products.models import Product
 
 def calculate_order_totals(cart_items):
     """
-    Calculate order totals with COD fee logic
+    Calculate order totals with COD fee logic and variant stock validation
 
     Args:
         cart_items: List of dicts with {product_id, quantity, size, color}
@@ -29,10 +29,28 @@ def calculate_order_totals(cart_items):
             raise ValueError(f"Product {item['product_id']} not found or inactive")
 
         quantity = Decimal(str(item['quantity']))
+        size = item.get('size')
+        color = item.get('color')
+        variant_id = None
 
-        # Validate stock
-        if product.stock_quantity < item['quantity']:
-            raise ValueError(f"Insufficient stock for {product.name}. Available: {product.stock_quantity}")
+        # Validate variant stock if size or color is specified
+        if size or color:
+            variant = product.get_variant(size=size, color=color)
+            if not variant:
+                size_display = size if size else 'No size'
+                color_display = color if color else 'No color'
+                raise ValueError(f"Variant not found for {product.name}: {size_display} / {color_display}")
+
+            if variant.stock_quantity < item['quantity']:
+                raise ValueError(
+                    f"Insufficient stock for {product.name} ({size_display}/{color_display}). "
+                    f"Available: {variant.stock_quantity}"
+                )
+            variant_id = variant.id
+        else:
+            # No variant specified - check total stock
+            if product.stock_quantity < item['quantity']:
+                raise ValueError(f"Insufficient stock for {product.name}. Available: {product.stock_quantity}")
 
         # Calculate item totals
         item_subtotal = product.display_price * quantity
@@ -41,13 +59,14 @@ def calculate_order_totals(cart_items):
 
         items_breakdown.append({
             'product_id': product.id,
+            'variant_id': variant_id,  # NEW
             'product_name': product.name,
             'base_price': product.base_price,
             'display_price': product.display_price,
             'commission_rate': product.commission_rate,
             'quantity': item['quantity'],
-            'size': item.get('size'),
-            'color': item.get('color'),
+            'size': size,
+            'color': color,
             'item_subtotal': item_subtotal,
             'commission_amount': item_commission,
             'seller_amount': item_seller_amount

@@ -1,6 +1,23 @@
 from rest_framework import serializers
-from .models import Product
+from .models import Product, ProductVariant
 from shops.models import Category
+
+
+class ProductVariantSerializer(serializers.ModelSerializer):
+    """Serializer for ProductVariant"""
+
+    class Meta:
+        model = ProductVariant
+        fields = ['id', 'size', 'color', 'stock_quantity', 'sku', 'is_active']
+        read_only_fields = ['id', 'sku']
+
+
+class ProductVariantCreateSerializer(serializers.Serializer):
+    """Serializer for creating variants"""
+    size = serializers.CharField(max_length=50, allow_blank=True, required=False, allow_null=True)
+    color = serializers.CharField(max_length=50, allow_blank=True, required=False, allow_null=True)
+    stock_quantity = serializers.IntegerField(min_value=0)
+
 
 class ProductListSerializer(serializers.ModelSerializer):
     """For listing products (customer view)"""
@@ -26,6 +43,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     shop_id = serializers.IntegerField(source='shop.id', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
     images = serializers.SerializerMethodField()
+    variants = ProductVariantSerializer(many=True, read_only=True)  # NEW
 
     class Meta:
         model = Product
@@ -33,7 +51,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             'id', 'name', 'slug', 'description', 'display_price',
             'stock_quantity', 'sizes', 'colors', 'images',
             'shop_name', 'shop_id', 'category_name', 'average_rating',
-            'review_count', 'is_active', 'created_at'
+            'review_count', 'is_active', 'created_at', 'variants'  # Added variants
         ]
 
     def get_images(self, obj):
@@ -47,12 +65,14 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
 class ProductCreateSerializer(serializers.ModelSerializer):
     """For sellers creating products - CRITICAL PRICING LOGIC"""
+    variants = ProductVariantCreateSerializer(many=True, required=False)  # NEW
 
     class Meta:
         model = Product
         fields = [
             'category', 'name', 'description', 'base_price', 'stock_quantity',
-            'sizes', 'colors', 'image1', 'image2', 'image3', 'image4', 'image5'
+            'sizes', 'colors', 'image1', 'image2', 'image3', 'image4', 'image5',
+            'variants'  # Added
         ]
 
     def validate_base_price(self, value):
@@ -66,6 +86,8 @@ class ProductCreateSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
+        variants_data = validated_data.pop('variants', [])  # NEW
+
         # Get shop from context (current user's shop)
         request = self.context.get('request')
         shop = request.user.shop
@@ -76,6 +98,14 @@ class ProductCreateSerializer(serializers.ModelSerializer):
 
         # Product model will auto-calculate display_price in save()
         product = Product.objects.create(**validated_data)
+
+        # Create variants if provided
+        if variants_data:
+            for variant_data in variants_data:
+                ProductVariant.objects.create(product=product, **variant_data)
+            # Update total stock after creating variants
+            product.update_total_stock()
+
         return product
 
 
@@ -106,7 +136,8 @@ class SellerProductSerializer(serializers.ModelSerializer):
     """For sellers viewing their own products - shows both prices"""
     category_name = serializers.CharField(source='category.name', read_only=True)
     commission_amount = serializers.SerializerMethodField()
-    images = serializers.SerializerMethodField()  # ✅ Add this
+    images = serializers.SerializerMethodField()
+    variants = ProductVariantSerializer(many=True, read_only=True)  # NEW
 
     class Meta:
         model = Product
@@ -114,8 +145,7 @@ class SellerProductSerializer(serializers.ModelSerializer):
             'id', 'name', 'slug', 'base_price', 'display_price', 'commission_rate',
             'commission_amount', 'stock_quantity', 'category_name', 'average_rating',
             'review_count', 'is_active', 'created_at',
-            # ✅ Add these fields:
-            'description', 'sizes', 'colors', 'images', 'category'
+            'description', 'sizes', 'colors', 'images', 'category', 'variants'  # Added variants
         ]
 
     def get_commission_amount(self, obj):

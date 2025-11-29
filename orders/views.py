@@ -5,7 +5,7 @@ from rest_framework import status
 from django.db import transaction
 from django.utils import timezone
 from .models import Order, OrderItem
-from products.models import Product
+from products.models import Product, ProductVariant
 from .serializers import (
     OrderCreateSerializer, OrderListSerializer,
     OrderDetailSerializer, OrderStatusUpdateSerializer
@@ -17,7 +17,7 @@ from .utils import calculate_order_totals, validate_cart_items
 @permission_classes([IsAuthenticated])
 def create_order(request):
     """
-    Create new order with COD fee logic
+    Create new order with COD fee logic and variant stock management
 
     Request Body:
     {
@@ -43,7 +43,7 @@ def create_order(request):
         # Validate cart items
         validate_cart_items(cart_items)
 
-        # Calculate totals with COD fee logic
+        # Calculate totals with COD fee logic and variant validation
         order_totals = calculate_order_totals(cart_items)
 
         # Check if all products are from same shop
@@ -78,11 +78,12 @@ def create_order(request):
                 seller_payout_amount=order_totals['seller_payout_amount']
             )
 
-            # Create order items
+            # Create order items and reduce stock
             for item_data in order_totals['items']:
                 OrderItem.objects.create(
                     order=order,
                     product_id=item_data['product_id'],
+                    variant_id=item_data.get('variant_id'),  # NEW
                     product_name=item_data['product_name'],
                     base_price=item_data['base_price'],
                     display_price=item_data['display_price'],
@@ -92,10 +93,15 @@ def create_order(request):
                     color=item_data['color']
                 )
 
-                # Reduce stock
-                product = Product.objects.get(id=item_data['product_id'])
-                product.stock_quantity -= item_data['quantity']
-                product.save()
+                # Reduce stock from variant or product
+                if item_data.get('variant_id'):
+                    variant = ProductVariant.objects.get(id=item_data['variant_id'])
+                    variant.stock_quantity -= item_data['quantity']
+                    variant.save()  # This will trigger product.update_total_stock()
+                else:
+                    product = Product.objects.get(id=item_data['product_id'])
+                    product.stock_quantity -= item_data['quantity']
+                    product.save()
 
         return Response({
             'message': 'Order placed successfully',
@@ -178,13 +184,11 @@ def get_seller_orders(request):
         return Response({'error': 'Shop not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
-# In orders/views.py - Modify the update_order_status function
-
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated])
 def update_order_status(request, order_number):
     """
-    Update order status (seller only)
+    Update order status (seller only) with variant stock restoration
     Valid transitions:
     - placed → confirmed
     - confirmed → shipped
@@ -237,14 +241,17 @@ def update_order_status(request, order_number):
         elif new_status == 'cancelled':
             order.cancelled_at = timezone.now()
 
-            # ✅ OPTIONAL: Store cancellation reason if provided
+            # Store cancellation reason if provided
             cancellation_reason = request.data.get('reason')
             if cancellation_reason:
                 order.cancellation_reason = cancellation_reason
 
-            # Restore stock
+            # Restore stock to variants or products
             for item in order.items.all():
-                if item.product:
+                if item.variant:
+                    item.variant.stock_quantity += item.quantity
+                    item.variant.save()  # This will trigger product.update_total_stock()
+                elif item.product:
                     item.product.stock_quantity += item.quantity
                     item.product.save()
 
@@ -318,7 +325,7 @@ def get_seller_dashboard(request):
 @permission_classes([IsAuthenticated])
 def cancel_customer_order(request, order_number):
     """
-    Cancel order by customer (before shipping only)
+    Cancel order by customer (before shipping only) with variant stock restoration
     """
     if request.user.user_type != 'customer':
         return Response(
@@ -341,9 +348,12 @@ def cancel_customer_order(request, order_number):
         order.order_status = 'cancelled'
         order.cancelled_at = timezone.now()
 
-        # Restore stock for all items
+        # Restore stock for all items (variant or product)
         for item in order.items.all():
-            if item.product:
+            if item.variant:
+                item.variant.stock_quantity += item.quantity
+                item.variant.save()  # This will trigger product.update_total_stock()
+            elif item.product:
                 item.product.stock_quantity += item.quantity
                 item.product.save()
 

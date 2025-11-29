@@ -12,4 +12,8 @@ urlpatterns = [
     path('create/', views.create_product, name='create_product'),
     path('update/<int:product_id>/', views.update_product, name='update_product'),
     path('delete/<int:product_id>/', views.delete_product, name='delete_product'),
+
+    # NEW: Variant management endpoints
+    path('<int:product_id>/variants/', views.get_product_variants, name='product_variants'),
+    path('variants/<int:variant_id>/stock/', views.update_variant_stock, name='update_variant_stock'),
 ]

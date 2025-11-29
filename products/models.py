@@ -1,6 +1,7 @@
 from django.db import models
 from shops.models import Shop, Category
 from decimal import Decimal
+import uuid
 
 
 class Product(models.Model):
@@ -72,3 +73,66 @@ class Product(models.Model):
 
     def is_in_stock(self):
         return self.stock_quantity > 0
+
+    # NEW METHODS FOR VARIANT SUPPORT
+    def update_total_stock(self):
+        """Calculate and update total stock from all active variants"""
+        from django.db.models import Sum
+        total = self.variants.filter(is_active=True).aggregate(
+            total=Sum('stock_quantity')
+        )['total'] or 0
+        # Use update to avoid triggering save() recursion
+        Product.objects.filter(id=self.id).update(stock_quantity=total)
+
+    def get_variant(self, size=None, color=None):
+        """Get specific variant by size and color"""
+        filters = {'is_active': True}
+        if size:
+            filters['size'] = size
+        if color:
+            filters['color'] = color
+        return self.variants.filter(**filters).first()
+
+    def has_variants(self):
+        """Check if product has size/color variants"""
+        return self.variants.filter(is_active=True).exists()
+
+
+class ProductVariant(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
+    size = models.CharField(max_length=50, blank=True, null=True)
+    color = models.CharField(max_length=50, blank=True, null=True)
+    stock_quantity = models.PositiveIntegerField(default=0)
+    sku = models.CharField(max_length=100, unique=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'product_variants'
+        unique_together = ['product', 'size', 'color']
+        indexes = [
+            models.Index(fields=['product', 'is_active']),
+            models.Index(fields=['sku']),
+        ]
+
+    def __str__(self):
+        variant_name = f"{self.product.name}"
+        if self.size:
+            variant_name += f" - {self.size}"
+        if self.color:
+            variant_name += f" - {self.color}"
+        return variant_name
+
+    def save(self, *args, **kwargs):
+        # Auto-generate SKU if not provided
+        if not self.sku:
+            size_part = self.size or 'NOSIZE'
+            color_part = self.color or 'NOCOLOR'
+            unique_id = uuid.uuid4().hex[:6].upper()
+            self.sku = f"VAR-{self.product.id}-{size_part}-{color_part}-{unique_id}"
+
+        super().save(*args, **kwargs)
+
+        # Update product total stock after saving variant
+        self.product.update_total_stock()
