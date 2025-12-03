@@ -4,8 +4,10 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.db import transaction
 from django.utils import timezone
+from decimal import Decimal
 from .models import Order, OrderItem
 from products.models import Product, ProductVariant
+from coupons.models import Coupon, CouponUsage  # NEW: Import coupon models
 from .serializers import (
     OrderCreateSerializer, OrderListSerializer,
     OrderDetailSerializer, OrderStatusUpdateSerializer
@@ -17,7 +19,7 @@ from .utils import calculate_order_totals, validate_cart_items
 @permission_classes([IsAuthenticated])
 def create_order(request):
     """
-    Create new order with COD fee logic and variant stock management
+    Create new order with COD fee logic, variant stock management, and coupon support
 
     Request Body:
     {
@@ -30,7 +32,8 @@ def create_order(request):
         "delivery_address": "123 Street, Colony",
         "city": "Amravati",
         "pincode": "444601",
-        "landmark": "Near Temple"
+        "landmark": "Near Temple",
+        "coupon_code": "SAVE20"  // Optional
     }
     """
     serializer = OrderCreateSerializer(data=request.data)
@@ -38,6 +41,7 @@ def create_order(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     cart_items = serializer.validated_data['cart_items']
+    coupon_code = serializer.validated_data.get('coupon_code', '').strip().upper()  # NEW
 
     try:
         # Validate cart items
@@ -59,6 +63,62 @@ def create_order(request):
 
         shop = products.first().shop
 
+        # NEW: Validate and calculate coupon discount
+        coupon = None
+        coupon_discount = Decimal('0')
+
+        if coupon_code:
+            try:
+                coupon = Coupon.objects.get(code=coupon_code, shop=shop)
+
+                # Check if coupon is valid
+                is_valid, message = coupon.is_valid()
+                if not is_valid:
+                    return Response({'error': f'Coupon error: {message}'}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Check if user can use this coupon
+                can_use, message = coupon.can_user_use(request.user)
+                if not can_use:
+                    return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Calculate applicable cart value for coupon
+                applicable_total = Decimal('0')
+
+                for item_data in order_totals['items']:
+                    product = Product.objects.get(id=item_data['product_id'])
+
+                    is_applicable = False
+                    if coupon.applicability == 'all':
+                        is_applicable = True
+                    elif coupon.applicability == 'category' and coupon.category:
+                        if product.category_id == coupon.category_id:
+                            is_applicable = True
+                    elif coupon.applicability == 'product' and coupon.product:
+                        if product.id == coupon.product_id:
+                            is_applicable = True
+
+                    if is_applicable:
+                        applicable_total += item_data['item_subtotal']
+
+                # Check minimum order value
+                if applicable_total < coupon.min_order_value:
+                    return Response(
+                        {'error': f'Minimum order value of ₹{coupon.min_order_value} required for this coupon'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                # Calculate discount
+                if coupon.discount_type == 'percentage':
+                    coupon_discount = (applicable_total * coupon.discount_value) / Decimal('100')
+                else:  # fixed
+                    coupon_discount = coupon.discount_value
+                    # Cap discount at applicable total
+                    if coupon_discount > applicable_total:
+                        coupon_discount = applicable_total
+
+            except Coupon.DoesNotExist:
+                return Response({'error': 'Invalid coupon code'}, status=status.HTTP_400_BAD_REQUEST)
+
         # Create order in transaction
         with transaction.atomic():
             # Create order
@@ -73,7 +133,10 @@ def create_order(request):
                 landmark=serializer.validated_data.get('landmark', ''),
                 subtotal=order_totals['subtotal'],
                 cod_fee=order_totals['cod_fee'],
-                total_amount=order_totals['total_amount'],
+                coupon=coupon,  # NEW
+                coupon_code=coupon_code if coupon else None,  # NEW
+                coupon_discount=coupon_discount,  # NEW
+                total_amount=order_totals['total_amount'] - coupon_discount,  # NEW: Subtract coupon discount
                 commission_amount=order_totals['commission_amount'],
                 seller_payout_amount=order_totals['seller_payout_amount']
             )
@@ -83,7 +146,7 @@ def create_order(request):
                 OrderItem.objects.create(
                     order=order,
                     product_id=item_data['product_id'],
-                    variant_id=item_data.get('variant_id'),  # NEW
+                    variant_id=item_data.get('variant_id'),
                     product_name=item_data['product_name'],
                     base_price=item_data['base_price'],
                     display_price=item_data['display_price'],
@@ -102,6 +165,17 @@ def create_order(request):
                     product = Product.objects.get(id=item_data['product_id'])
                     product.stock_quantity -= item_data['quantity']
                     product.save()
+
+            # NEW: Record coupon usage and increment usage count
+            if coupon:
+                CouponUsage.objects.create(
+                    coupon=coupon,
+                    customer=request.user,
+                    order=order,
+                    discount_amount=coupon_discount
+                )
+                coupon.times_used += 1
+                coupon.save()
 
         return Response({
             'message': 'Order placed successfully',
@@ -188,7 +262,7 @@ def get_seller_orders(request):
 @permission_classes([IsAuthenticated])
 def update_order_status(request, order_number):
     """
-    Update order status (seller only) with variant stock restoration
+    Update order status (seller only) with variant stock restoration and coupon handling
     Valid transitions:
     - placed → confirmed
     - confirmed → shipped
@@ -254,6 +328,11 @@ def update_order_status(request, order_number):
                 elif item.product:
                     item.product.stock_quantity += item.quantity
                     item.product.save()
+
+            # NEW: Restore coupon usage count if cancelled
+            if order.coupon:
+                order.coupon.times_used -= 1
+                order.coupon.save()
 
         order.save()
 
@@ -325,7 +404,7 @@ def get_seller_dashboard(request):
 @permission_classes([IsAuthenticated])
 def cancel_customer_order(request, order_number):
     """
-    Cancel order by customer (before shipping only) with variant stock restoration
+    Cancel order by customer (before shipping only) with variant stock restoration and coupon handling
     """
     if request.user.user_type != 'customer':
         return Response(
@@ -340,7 +419,8 @@ def cancel_customer_order(request, order_number):
         # Check if order can be cancelled
         if order.order_status not in ['placed', 'confirmed']:
             return Response(
-                {'error': f'Cannot cancel order with status: {order.order_status}. Orders can only be cancelled before shipping.'},
+                {
+                    'error': f'Cannot cancel order with status: {order.order_status}. Orders can only be cancelled before shipping.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -356,6 +436,11 @@ def cancel_customer_order(request, order_number):
             elif item.product:
                 item.product.stock_quantity += item.quantity
                 item.product.save()
+
+        # NEW: Restore coupon usage count if cancelled
+        if order.coupon:
+            order.coupon.times_used -= 1
+            order.coupon.save()
 
         order.save()
 

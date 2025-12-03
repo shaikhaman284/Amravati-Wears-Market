@@ -20,6 +20,15 @@ class Product(models.Model):
     # Display price = what customer pays (auto-calculated)
     display_price = models.DecimalField(max_digits=10, decimal_places=2)
 
+    # NEW: MRP Field for real discounts
+    mrp = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Maximum Retail Price (optional)"
+    )
+
     stock_quantity = models.PositiveIntegerField(default=0)
 
     # Variants
@@ -74,7 +83,14 @@ class Product(models.Model):
     def is_in_stock(self):
         return self.stock_quantity > 0
 
-    # NEW METHODS FOR VARIANT SUPPORT
+    # NEW: MRP Discount Calculation
+    def get_discount_percentage(self):
+        """Calculate discount percentage from MRP"""
+        if self.mrp and self.mrp > self.display_price:
+            return round(((self.mrp - self.display_price) / self.mrp) * 100, 2)
+        return 0
+
+    # EXISTING METHODS FOR VARIANT SUPPORT
     def update_total_stock(self):
         """Calculate and update total stock from all active variants"""
         from django.db.models import Sum

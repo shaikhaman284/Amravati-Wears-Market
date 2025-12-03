@@ -36,7 +36,14 @@ class Order(models.Model):
     # Pricing - CRITICAL LOGIC
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)  # Sum of display_prices
     cod_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)  # ₹50 if subtotal < ₹500
-    total_amount = models.DecimalField(max_digits=10, decimal_places=2)  # subtotal + cod_fee
+
+    # NEW: Coupon Fields
+    coupon = models.ForeignKey('coupons.Coupon', null=True, blank=True, on_delete=models.SET_NULL,
+                               related_name='orders')
+    coupon_code = models.CharField(max_length=20, blank=True, null=True)
+    coupon_discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)  # subtotal + cod_fee - coupon_discount
 
     # Commission & Payout
     commission_amount = models.DecimalField(max_digits=10, decimal_places=2)  # Platform earns
@@ -60,6 +67,7 @@ class Order(models.Model):
         indexes = [
             models.Index(fields=['customer', 'order_status']),
             models.Index(fields=['shop', 'order_status']),
+            models.Index(fields=['coupon']),  # NEW: Index for coupon queries
         ]
 
     def __str__(self):
@@ -84,8 +92,12 @@ class Order(models.Model):
         else:
             self.cod_fee = Decimal('0.00')
 
-        # Total = subtotal + COD fee
-        self.total_amount = self.subtotal + self.cod_fee
+        # NEW: Total calculation with coupon discount
+        # Total = subtotal + COD fee - coupon discount
+        if self.coupon_discount:
+            self.total_amount = self.subtotal + self.cod_fee - self.coupon_discount
+        else:
+            self.total_amount = self.subtotal + self.cod_fee
 
         # Commission = sum of (display_price - base_price) × quantity
         self.commission_amount = sum(item.commission_amount for item in items)
@@ -99,7 +111,7 @@ class Order(models.Model):
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)
-    variant = models.ForeignKey('products.ProductVariant', on_delete=models.SET_NULL, null=True, blank=True)  # NEW
+    variant = models.ForeignKey('products.ProductVariant', on_delete=models.SET_NULL, null=True, blank=True)
 
     # Snapshots (prices at time of order)
     product_name = models.CharField(max_length=255)

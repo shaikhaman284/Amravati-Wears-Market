@@ -4,14 +4,14 @@ from .models import Order, OrderItem
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product_image = serializers.SerializerMethodField()
-    variant_info = serializers.SerializerMethodField()  # NEW
+    variant_info = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
         fields = [
             'id',
             'product',
-            'variant',  # NEW
+            'variant',
             'product_name',
             'product_image',
             'base_price',
@@ -23,7 +23,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
             'item_subtotal',
             'commission_amount',
             'seller_amount',
-            'variant_info'  # NEW
+            'variant_info'
         ]
 
     def get_product_image(self, obj):
@@ -54,10 +54,9 @@ class OrderListSerializer(serializers.ModelSerializer):
         model = Order
         fields = [
             'id', 'order_number', 'shop_name', 'customer_name',
-            'items_count', 'total_amount', 'order_status',
-            'payment_status', 'created_at',
-            'seller_payout_amount',
-            'commission_amount'
+            'items_count', 'subtotal', 'coupon_discount', 'total_amount',  # Added coupon_discount
+            'order_status', 'payment_status', 'created_at',
+            'seller_payout_amount', 'commission_amount'
         ]
 
     def get_items_count(self, obj):
@@ -77,7 +76,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             'id', 'order_number', 'shop_name', 'shop_contact',
             'customer_name', 'customer_phone', 'delivery_address',
             'city', 'pincode', 'landmark',
-            'subtotal', 'cod_fee', 'total_amount',
+            'subtotal', 'cod_fee', 'coupon_code', 'coupon_discount', 'total_amount',  # Added coupon fields
             'commission_amount', 'seller_payout_amount',
             'net_cash_to_keep',
             'order_status', 'payment_status',
@@ -103,6 +102,9 @@ class OrderCreateSerializer(serializers.Serializer):
     city = serializers.CharField(max_length=100, default='Amravati')
     pincode = serializers.CharField(max_length=6)
     landmark = serializers.CharField(max_length=255, required=False, allow_blank=True)
+
+    # NEW: Coupon fields
+    coupon_code = serializers.CharField(max_length=20, required=False, allow_blank=True, allow_null=True)
 
     def validate_pincode(self, value):
         if len(value) != 6 or not value.isdigit():

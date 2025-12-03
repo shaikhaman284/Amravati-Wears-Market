@@ -24,17 +24,22 @@ class ProductListSerializer(serializers.ModelSerializer):
     shop_name = serializers.CharField(source='shop.shop_name', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
     main_image = serializers.SerializerMethodField()
+    discount_percentage = serializers.SerializerMethodField()  # NEW
 
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'slug', 'display_price', 'stock_quantity',
-            'main_image', 'shop_name', 'category_name', 'average_rating',
-            'review_count', 'is_active'
+            'id', 'name', 'slug', 'display_price', 'mrp', 'discount_percentage',  # Added mrp & discount
+            'stock_quantity', 'main_image', 'shop_name', 'category_name',
+            'average_rating', 'review_count', 'is_active'
         ]
 
     def get_main_image(self, obj):
         return obj.image1 if obj.image1 else None
+
+    def get_discount_percentage(self, obj):
+        """Calculate real discount from MRP"""
+        return obj.get_discount_percentage()
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):
@@ -43,15 +48,16 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     shop_id = serializers.IntegerField(source='shop.id', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
     images = serializers.SerializerMethodField()
-    variants = ProductVariantSerializer(many=True, read_only=True)  # NEW
+    variants = ProductVariantSerializer(many=True, read_only=True)
+    discount_percentage = serializers.SerializerMethodField()  # NEW
 
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'slug', 'description', 'display_price',
-            'stock_quantity', 'sizes', 'colors', 'images',
-            'shop_name', 'shop_id', 'category_name', 'average_rating',
-            'review_count', 'is_active', 'created_at', 'variants'  # Added variants
+            'id', 'name', 'slug', 'description', 'display_price', 'mrp',  # Added mrp
+            'discount_percentage', 'stock_quantity', 'sizes', 'colors',  # Added discount
+            'images', 'shop_name', 'shop_id', 'category_name', 'average_rating',
+            'review_count', 'is_active', 'created_at', 'variants'
         ]
 
     def get_images(self, obj):
@@ -62,17 +68,22 @@ class ProductDetailSerializer(serializers.ModelSerializer):
                 images.append(img)
         return images
 
+    def get_discount_percentage(self, obj):
+        """Calculate real discount from MRP"""
+        return obj.get_discount_percentage()
+
 
 class ProductCreateSerializer(serializers.ModelSerializer):
     """For sellers creating products - CRITICAL PRICING LOGIC"""
-    variants = ProductVariantCreateSerializer(many=True, required=False)  # NEW
+    variants = ProductVariantCreateSerializer(many=True, required=False)
+    mrp = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)  # NEW
 
     class Meta:
         model = Product
         fields = [
-            'category', 'name', 'description', 'base_price', 'stock_quantity',
-            'sizes', 'colors', 'image1', 'image2', 'image3', 'image4', 'image5',
-            'variants'  # Added
+            'category', 'name', 'description', 'base_price', 'mrp',  # Added mrp
+            'stock_quantity', 'sizes', 'colors', 'image1', 'image2',
+            'image3', 'image4', 'image5', 'variants'
         ]
 
     def validate_base_price(self, value):
@@ -85,8 +96,29 @@ class ProductCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Stock quantity cannot be negative")
         return value
 
+    def validate(self, data):
+        """Validate MRP is higher than display price for discount"""
+        mrp = data.get('mrp')
+        base_price = data.get('base_price')
+
+        if mrp and base_price:
+            # We need to calculate display_price to validate
+            # Get commission rate from context (will be set during creation)
+            request = self.context.get('request')
+            if request and hasattr(request.user, 'shop'):
+                from decimal import Decimal
+                commission_rate = request.user.shop.commission_rate
+                display_price = base_price * (1 + commission_rate / Decimal('100'))
+
+                if mrp <= display_price:
+                    raise serializers.ValidationError({
+                        'mrp': f'MRP (₹{mrp}) should be higher than customer price (₹{display_price:.2f}) to show discount'
+                    })
+
+        return data
+
     def create(self, validated_data):
-        variants_data = validated_data.pop('variants', [])  # NEW
+        variants_data = validated_data.pop('variants', [])
 
         # Get shop from context (current user's shop)
         request = self.context.get('request')
@@ -111,18 +143,37 @@ class ProductCreateSerializer(serializers.ModelSerializer):
 
 class ProductUpdateSerializer(serializers.ModelSerializer):
     """For sellers updating products"""
+    mrp = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)  # NEW
 
     class Meta:
         model = Product
         fields = [
-            'category', 'name', 'description', 'base_price', 'stock_quantity',
-            'sizes', 'colors', 'image1', 'image2', 'image3', 'image4', 'image5', 'is_active'
+            'category', 'name', 'description', 'base_price', 'mrp',  # Added mrp
+            'stock_quantity', 'sizes', 'colors', 'image1', 'image2',
+            'image3', 'image4', 'image5', 'is_active'
         ]
 
     def validate_base_price(self, value):
         if value <= 0:
             raise serializers.ValidationError("Base price must be greater than 0")
         return value
+
+    def validate(self, data):
+        """Validate MRP is higher than display price"""
+        mrp = data.get('mrp')
+        base_price = data.get('base_price', self.instance.base_price)
+        commission_rate = self.instance.commission_rate
+
+        if mrp:
+            from decimal import Decimal
+            display_price = base_price * (1 + commission_rate / Decimal('100'))
+
+            if mrp <= display_price:
+                raise serializers.ValidationError({
+                    'mrp': f'MRP (₹{mrp}) should be higher than customer price (₹{display_price:.2f}) to show discount'
+                })
+
+        return data
 
     def update(self, instance, validated_data):
         # If base_price changed, display_price will be recalculated in save()
@@ -137,15 +188,17 @@ class SellerProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     commission_amount = serializers.SerializerMethodField()
     images = serializers.SerializerMethodField()
-    variants = ProductVariantSerializer(many=True, read_only=True)  # NEW
+    variants = ProductVariantSerializer(many=True, read_only=True)
+    discount_percentage = serializers.SerializerMethodField()  # NEW
 
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'slug', 'base_price', 'display_price', 'commission_rate',
-            'commission_amount', 'stock_quantity', 'category_name', 'average_rating',
-            'review_count', 'is_active', 'created_at',
-            'description', 'sizes', 'colors', 'images', 'category', 'variants'  # Added variants
+            'id', 'name', 'slug', 'base_price', 'display_price', 'mrp',  # Added mrp
+            'discount_percentage', 'commission_rate', 'commission_amount',  # Added discount
+            'stock_quantity', 'category_name', 'average_rating', 'review_count',
+            'is_active', 'created_at', 'description', 'sizes', 'colors',
+            'images', 'category', 'variants'
         ]
 
     def get_commission_amount(self, obj):
@@ -159,3 +212,7 @@ class SellerProductSerializer(serializers.ModelSerializer):
             if img:
                 images.append(img)
         return images
+
+    def get_discount_percentage(self, obj):
+        """Calculate real discount from MRP"""
+        return obj.get_discount_percentage()

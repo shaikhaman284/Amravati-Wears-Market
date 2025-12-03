@@ -26,6 +26,7 @@ urlpatterns = [
     path('api/products/', include('products.urls')),
     path('api/orders/', include('orders.urls')),
     path('api/reviews/', include('reviews.urls')),
+    path('api/coupons/', include('coupons.urls')),  # NEW: Added coupons routes
 ]
 
 # Serve media files in development

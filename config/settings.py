@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     'products',
     'orders',
     'reviews',
+    'coupons',  # NEW: Added coupons app
 ]
 
 MIDDLEWARE = [
