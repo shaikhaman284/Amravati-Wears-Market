@@ -1,3 +1,5 @@
+# orders/models.py - COMPLETE FILE
+
 from django.db import models
 from django.conf import settings
 from shops.models import Shop
@@ -37,7 +39,7 @@ class Order(models.Model):
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)  # Sum of display_prices
     cod_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)  # ₹50 if subtotal < ₹500
 
-    # NEW: Coupon Fields
+    # Coupon Fields
     coupon = models.ForeignKey('coupons.Coupon', null=True, blank=True, on_delete=models.SET_NULL,
                                related_name='orders')
     coupon_code = models.CharField(max_length=20, blank=True, null=True)
@@ -67,7 +69,7 @@ class Order(models.Model):
         indexes = [
             models.Index(fields=['customer', 'order_status']),
             models.Index(fields=['shop', 'order_status']),
-            models.Index(fields=['coupon']),  # NEW: Index for coupon queries
+            models.Index(fields=['coupon']),
         ]
 
     def __str__(self):
@@ -92,7 +94,7 @@ class Order(models.Model):
         else:
             self.cod_fee = Decimal('0.00')
 
-        # NEW: Total calculation with coupon discount
+        # Total calculation with coupon discount
         # Total = subtotal + COD fee - coupon discount
         if self.coupon_discount:
             self.total_amount = self.subtotal + self.cod_fee - self.coupon_discount
@@ -117,6 +119,7 @@ class OrderItem(models.Model):
     product_name = models.CharField(max_length=255)
     base_price = models.DecimalField(max_digits=10, decimal_places=2)  # What seller gets per unit
     display_price = models.DecimalField(max_digits=10, decimal_places=2)  # What customer pays per unit
+    mrp = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # NEW: MRP snapshot
     commission_rate = models.DecimalField(max_digits=5, decimal_places=2)
 
     quantity = models.PositiveIntegerField(default=1)
@@ -142,3 +145,9 @@ class OrderItem(models.Model):
         self.commission_amount = (self.display_price - self.base_price) * Decimal(str(self.quantity))
         self.seller_amount = self.base_price * Decimal(str(self.quantity))
         super().save(*args, **kwargs)
+
+    def get_discount_percentage(self):
+        """Calculate discount percentage from MRP"""
+        if self.mrp and self.mrp > self.display_price:
+            return round(((self.mrp - self.display_price) / self.mrp) * 100, 2)
+        return 0

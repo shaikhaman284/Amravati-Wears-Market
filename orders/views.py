@@ -1,3 +1,5 @@
+# orders/views.py - COMPLETE FILE WITH MRP SUPPORT
+
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -7,7 +9,7 @@ from django.utils import timezone
 from decimal import Decimal
 from .models import Order, OrderItem
 from products.models import Product, ProductVariant
-from coupons.models import Coupon, CouponUsage  # NEW: Import coupon models
+from coupons.models import Coupon, CouponUsage
 from .serializers import (
     OrderCreateSerializer, OrderListSerializer,
     OrderDetailSerializer, OrderStatusUpdateSerializer
@@ -19,7 +21,7 @@ from .utils import calculate_order_totals, validate_cart_items
 @permission_classes([IsAuthenticated])
 def create_order(request):
     """
-    Create new order with COD fee logic, variant stock management, and coupon support
+    Create new order with COD fee logic, variant stock management, coupon support, and MRP tracking
 
     Request Body:
     {
@@ -41,13 +43,13 @@ def create_order(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     cart_items = serializer.validated_data['cart_items']
-    coupon_code = serializer.validated_data.get('coupon_code', '').strip().upper()  # NEW
+    coupon_code = serializer.validated_data.get('coupon_code', '').strip().upper()
 
     try:
         # Validate cart items
         validate_cart_items(cart_items)
 
-        # Calculate totals with COD fee logic and variant validation
+        # Calculate totals with COD fee logic and variant validation (includes MRP)
         order_totals = calculate_order_totals(cart_items)
 
         # Check if all products are from same shop
@@ -63,7 +65,7 @@ def create_order(request):
 
         shop = products.first().shop
 
-        # NEW: Validate and calculate coupon discount
+        # Validate and calculate coupon discount
         coupon = None
         coupon_discount = Decimal('0')
 
@@ -133,15 +135,15 @@ def create_order(request):
                 landmark=serializer.validated_data.get('landmark', ''),
                 subtotal=order_totals['subtotal'],
                 cod_fee=order_totals['cod_fee'],
-                coupon=coupon,  # NEW
-                coupon_code=coupon_code if coupon else None,  # NEW
-                coupon_discount=coupon_discount,  # NEW
-                total_amount=order_totals['total_amount'] - coupon_discount,  # NEW: Subtract coupon discount
+                coupon=coupon,
+                coupon_code=coupon_code if coupon else None,
+                coupon_discount=coupon_discount,
+                total_amount=order_totals['total_amount'] - coupon_discount,
                 commission_amount=order_totals['commission_amount'],
                 seller_payout_amount=order_totals['seller_payout_amount']
             )
 
-            # Create order items and reduce stock
+            # Create order items and reduce stock (WITH MRP)
             for item_data in order_totals['items']:
                 OrderItem.objects.create(
                     order=order,
@@ -150,6 +152,7 @@ def create_order(request):
                     product_name=item_data['product_name'],
                     base_price=item_data['base_price'],
                     display_price=item_data['display_price'],
+                    mrp=item_data.get('mrp'),  # ADDED: Capture MRP at time of order
                     commission_rate=item_data['commission_rate'],
                     quantity=item_data['quantity'],
                     size=item_data['size'],
@@ -166,7 +169,7 @@ def create_order(request):
                     product.stock_quantity -= item_data['quantity']
                     product.save()
 
-            # NEW: Record coupon usage and increment usage count
+            # Record coupon usage and increment usage count
             if coupon:
                 CouponUsage.objects.create(
                     coupon=coupon,
@@ -329,7 +332,7 @@ def update_order_status(request, order_number):
                     item.product.stock_quantity += item.quantity
                     item.product.save()
 
-            # NEW: Restore coupon usage count if cancelled
+            # Restore coupon usage count if cancelled
             if order.coupon:
                 order.coupon.times_used -= 1
                 order.coupon.save()
@@ -437,7 +440,7 @@ def cancel_customer_order(request, order_number):
                 item.product.stock_quantity += item.quantity
                 item.product.save()
 
-        # NEW: Restore coupon usage count if cancelled
+        # Restore coupon usage count if cancelled
         if order.coupon:
             order.coupon.times_used -= 1
             order.coupon.save()

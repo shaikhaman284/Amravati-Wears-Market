@@ -1,3 +1,5 @@
+# orders/utils.py - COMPLETE FILE
+
 from decimal import Decimal
 from products.models import Product
 
@@ -59,10 +61,11 @@ def calculate_order_totals(cart_items):
 
         items_breakdown.append({
             'product_id': product.id,
-            'variant_id': variant_id,  # NEW
+            'variant_id': variant_id,
             'product_name': product.name,
             'base_price': product.base_price,
             'display_price': product.display_price,
+            'mrp': product.mrp,  # NEW: Add MRP to items breakdown
             'commission_rate': product.commission_rate,
             'quantity': item['quantity'],
             'size': size,
