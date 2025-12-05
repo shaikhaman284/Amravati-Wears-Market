@@ -1,3 +1,6 @@
+import uuid
+
+from django.db import models
 from rest_framework import serializers
 from .models import Product, ProductVariant
 from shops.models import Category
@@ -142,45 +145,127 @@ class ProductCreateSerializer(serializers.ModelSerializer):
 
 
 class ProductUpdateSerializer(serializers.ModelSerializer):
-    """For sellers updating products"""
-    mrp = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)  # NEW
+    """
+    Serializer for updating products
+    Supports creating new variants via new_variants field
+    """
+    new_variants = serializers.ListField(
+        child=serializers.DictField(),
+        write_only=True,
+        required=False,
+        help_text="List of new variant objects to create"
+    )
 
     class Meta:
         model = Product
         fields = [
-            'category', 'name', 'description', 'base_price', 'mrp',  # Added mrp
-            'stock_quantity', 'sizes', 'colors', 'image1', 'image2',
-            'image3', 'image4', 'image5', 'is_active'
+            'id', 'name', 'description', 'category', 'base_price', 'mrp',
+            'stock_quantity', 'sizes', 'colors', 'is_active',
+            'image1', 'image2', 'image3', 'image4', 'image5',
+            'new_variants'
         ]
+        read_only_fields = ['id']
 
-    def validate_base_price(self, value):
-        if value <= 0:
-            raise serializers.ValidationError("Base price must be greater than 0")
+    def validate_new_variants(self, value):
+        """Validate new_variants data"""
+        if not isinstance(value, list):
+            raise serializers.ValidationError("new_variants must be a list")
+
+        for variant in value:
+            if not isinstance(variant, dict):
+                raise serializers.ValidationError("Each variant must be a dictionary")
+
+            # Validate stock_quantity
+            if 'stock_quantity' not in variant:
+                raise serializers.ValidationError("stock_quantity is required for each variant")
+
+            try:
+                stock = int(variant['stock_quantity'])
+                if stock < 0:
+                    raise serializers.ValidationError("stock_quantity must be non-negative")
+            except (ValueError, TypeError):
+                raise serializers.ValidationError("stock_quantity must be a valid integer")
+
         return value
 
-    def validate(self, data):
-        """Validate MRP is higher than display price"""
-        mrp = data.get('mrp')
-        base_price = data.get('base_price', self.instance.base_price)
-        commission_rate = self.instance.commission_rate
-
-        if mrp:
-            from decimal import Decimal
-            display_price = base_price * (1 + commission_rate / Decimal('100'))
-
-            if mrp <= display_price:
-                raise serializers.ValidationError({
-                    'mrp': f'MRP (₹{mrp}) should be higher than customer price (₹{display_price:.2f}) to show discount'
-                })
-
-        return data
-
     def update(self, instance, validated_data):
-        # If base_price changed, display_price will be recalculated in save()
+        """
+        Update product and create new variants if provided
+        """
+        # Extract new_variants from validated_data
+        new_variants_data = validated_data.pop('new_variants', None)
+
+        # Update product fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+
+        # If base_price changed, recalculate display_price
+        if 'base_price' in validated_data:
+            commission_multiplier = 1 + (instance.shop.commission_rate / 100)
+            instance.display_price = instance.base_price * commission_multiplier
+            instance.commission_amount = instance.display_price - instance.base_price
+
         instance.save()
+
+        # Create new variants if provided
+        if new_variants_data:
+            self._create_new_variants(instance, new_variants_data)
+
         return instance
+
+    def _create_new_variants(self, product, variants_data):
+        """
+        Create new product variants
+        """
+        created_count = 0
+
+        for variant_data in variants_data:
+            size = variant_data.get('size')
+            color = variant_data.get('color')
+            stock_quantity = variant_data.get('stock_quantity', 0)
+
+            # Check if variant with same size/color already exists
+            existing_variant = ProductVariant.objects.filter(
+                product=product,
+                size=size if size else None,
+                color=color if color else None
+            ).first()
+
+            if existing_variant:
+                # Update stock if variant already exists
+                existing_variant.stock_quantity += stock_quantity
+                existing_variant.save()
+            else:
+                # Create new variant
+                # Generate SKU
+                sku_parts = [product.slug[:10]]
+                if size:
+                    sku_parts.append(size.replace(' ', '').upper()[:5])
+                if color:
+                    sku_parts.append(color.replace(' ', '').upper()[:5])
+                sku_parts.append(str(uuid.uuid4())[:6].upper())
+                sku = '-'.join(sku_parts)
+
+                ProductVariant.objects.create(
+                    product=product,
+                    size=size if size else None,
+                    color=color if color else None,
+                    stock_quantity=stock_quantity,
+                    sku=sku,
+                    is_active=True
+                )
+                created_count += 1
+
+        # Recalculate total stock after creating variants
+        # This assumes your Product model has variants as related_name
+        total_stock = product.variants.aggregate(
+            total=models.Sum('stock_quantity')
+        )['total'] or 0
+
+        product.stock_quantity = total_stock
+        product.save(update_fields=['stock_quantity'])
+
+        return created_count
 
 
 class SellerProductSerializer(serializers.ModelSerializer):

@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -216,6 +217,7 @@ def update_product(request, product_id):
     """
     Update product (seller only)
     If base_price changes, display_price is recalculated
+    Supports creating new variants via new_variants field
     """
     if request.user.user_type != 'seller':
         return Response(
@@ -227,20 +229,31 @@ def update_product(request, product_id):
         shop = request.user.shop
         product = Product.objects.get(id=product_id, shop=shop)
 
-        serializer = ProductUpdateSerializer(product, data=request.data, partial=True)
-        if serializer.is_valid():
-            product = serializer.save()
-            return Response({
-                'message': 'Product updated successfully',
-                'product': SellerProductSerializer(product).data
-            })
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # Use transaction to ensure atomicity when creating variants
+        with transaction.atomic():
+            serializer = ProductUpdateSerializer(
+                product,
+                data=request.data,
+                partial=True
+            )
+
+            if serializer.is_valid():
+                product = serializer.save()
+                return Response({
+                    'message': 'Product updated successfully',
+                    'product': SellerProductSerializer(product).data
+                })
+
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
     except Product.DoesNotExist:
         return Response(
             {'error': 'Product not found'},
             status=status.HTTP_404_NOT_FOUND
         )
-
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
