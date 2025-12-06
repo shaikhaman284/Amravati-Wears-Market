@@ -348,7 +348,6 @@ def update_order_status(request, order_number):
     except Order.DoesNotExist:
         return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
 
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_seller_dashboard(request):
@@ -377,17 +376,18 @@ def get_seller_dashboard(request):
             created_at__date=date.today()
         ).count()
 
-        # ✅ CHANGED: Total earnings using seller_earnings (delivered orders)
-        # This now accounts for coupon discounts that seller absorbed
+        # ✅ Total earnings using seller_earnings (delivered orders only)
+        # This accounts for coupon discounts that seller absorbed
         total_earnings = Order.objects.filter(
             shop=shop,
             order_status='delivered'
         ).aggregate(total=Sum('seller_earnings'))['total'] or 0
 
-        # ✅ CHANGED: Pending earnings using seller_earnings (confirmed + shipped orders)
+        # ✅ FIXED: Pending earnings using seller_earnings (placed + confirmed + shipped orders)
+        # Include ALL orders that are not yet delivered or cancelled
         pending_earnings = Order.objects.filter(
             shop=shop,
-            order_status__in=['confirmed', 'shipped']
+            order_status__in=['placed', 'confirmed', 'shipped']  # ✅ Added 'placed'
         ).aggregate(total=Sum('seller_earnings'))['total'] or 0
 
         # Recent orders
@@ -401,7 +401,11 @@ def get_seller_dashboard(request):
             'pending_earnings': float(pending_earnings),
             'recent_orders': OrderListSerializer(recent_orders, many=True).data
         })
-    except:
+    except Exception as e:
+        # Better error logging
+        import traceback
+        print(f"Dashboard error: {e}")
+        traceback.print_exc()
         return Response({'error': 'Shop not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
