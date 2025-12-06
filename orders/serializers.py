@@ -53,23 +53,31 @@ class OrderItemSerializer(serializers.ModelSerializer):
         return obj.get_discount_percentage()
 
 
+# orders/serializers.py
+
 class OrderListSerializer(serializers.ModelSerializer):
     """For listing orders (both customer and seller)"""
     shop_name = serializers.CharField(source='shop.shop_name', read_only=True)
+    shop_contact = serializers.CharField(source='shop.contact_number', read_only=True, allow_null=True)
     customer_name = serializers.CharField(read_only=True)
+    customer_phone = serializers.CharField(read_only=True)  # ✅ Now included
     items_count = serializers.SerializerMethodField()
+    items = OrderItemSerializer(many=True, read_only=True)  # ✅ ADD THIS - Include full items
 
     class Meta:
         model = Order
         fields = [
-            'id', 'order_number', 'shop_name', 'customer_name',
-            'items_count', 'subtotal', 'coupon_discount', 'total_amount',
-            'order_status', 'payment_status', 'created_at',
-            'seller_payout_amount', 'commission_amount'
+            'id', 'order_number', 'shop_name', 'shop_contact',
+            'customer_name', 'customer_phone',
+            'items_count', 'items',  # ✅ ADD 'items' here
+            'subtotal', 'coupon_code', 'coupon_discount',
+            'total_amount', 'order_status', 'payment_status', 'created_at',
+            'seller_payout_amount', 'commission_amount', 'cod_fee'  # ✅ Add cod_fee
         ]
 
     def get_items_count(self, obj):
         return obj.items.count()
+
 
 
 class OrderDetailSerializer(serializers.ModelSerializer):
