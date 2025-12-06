@@ -1,4 +1,4 @@
-# orders/serializers.py - COMPLETE FILE
+# orders/serializers.py - UPDATED
 
 from rest_framework import serializers
 from .models import Order, OrderItem
@@ -53,37 +53,34 @@ class OrderItemSerializer(serializers.ModelSerializer):
         return obj.get_discount_percentage()
 
 
-# orders/serializers.py
-
 class OrderListSerializer(serializers.ModelSerializer):
     """For listing orders (both customer and seller)"""
     shop_name = serializers.CharField(source='shop.shop_name', read_only=True)
     shop_contact = serializers.CharField(source='shop.contact_number', read_only=True, allow_null=True)
     customer_name = serializers.CharField(read_only=True)
-    customer_phone = serializers.CharField(read_only=True)  # ✅ Now included
+    customer_phone = serializers.CharField(read_only=True)
     items_count = serializers.SerializerMethodField()
-    items = OrderItemSerializer(many=True, read_only=True)  # ✅ ADD THIS - Include full items
+    items = OrderItemSerializer(many=True, read_only=True)
 
     class Meta:
         model = Order
         fields = [
             'id', 'order_number', 'shop_name', 'shop_contact',
             'customer_name', 'customer_phone',
-            'items_count', 'items',  # ✅ ADD 'items' here
+            'items_count', 'items',
             'subtotal', 'coupon_code', 'coupon_discount',
             'total_amount', 'order_status', 'payment_status', 'created_at',
-            'seller_payout_amount', 'commission_amount', 'cod_fee'  # ✅ Add cod_fee
+            'seller_payout_amount', 'seller_earnings', 'commission_amount', 'cod_fee'  # ✅ Added seller_earnings
         ]
 
     def get_items_count(self, obj):
         return obj.items.count()
 
 
-
 class OrderDetailSerializer(serializers.ModelSerializer):
     """Full order details"""
     shop_name = serializers.CharField(source='shop.shop_name', read_only=True)
-    shop_contact = serializers.CharField(source='shop.contact_number', read_only=True)
+    shop_contact = serializers.CharField(source='shop.contact_number', read_only=True, allow_null=True)
     items = OrderItemSerializer(many=True, read_only=True)
     net_cash_to_keep = serializers.SerializerMethodField()
 
@@ -94,7 +91,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             'customer_name', 'customer_phone', 'delivery_address',
             'city', 'pincode', 'landmark',
             'subtotal', 'cod_fee', 'coupon_code', 'coupon_discount', 'total_amount',
-            'commission_amount', 'seller_payout_amount',
+            'commission_amount', 'seller_payout_amount', 'seller_earnings',  # ✅ Added seller_earnings
             'net_cash_to_keep',
             'order_status', 'payment_status',
             'items', 'created_at', 'confirmed_at', 'shipped_at',
@@ -104,7 +101,8 @@ class OrderDetailSerializer(serializers.ModelSerializer):
 
     def get_net_cash_to_keep(self, obj):
         """Calculate net cash seller keeps after collecting COD"""
-        return float(obj.total_amount - obj.commission_amount - obj.cod_fee)
+        # This is same as seller_earnings now
+        return float(obj.seller_earnings)
 
 
 class OrderCreateSerializer(serializers.Serializer):

@@ -1,4 +1,4 @@
-# orders/models.py - COMPLETE FILE
+# orders/models.py - UPDATED
 
 from django.db import models
 from django.conf import settings
@@ -49,7 +49,12 @@ class Order(models.Model):
 
     # Commission & Payout
     commission_amount = models.DecimalField(max_digits=10, decimal_places=2)  # Platform earns
-    seller_payout_amount = models.DecimalField(max_digits=10, decimal_places=2)  # Seller receives
+    seller_payout_amount = models.DecimalField(max_digits=10,
+                                               decimal_places=2)  # Base seller amount (sum of base_price × quantity)
+
+    # ✅ NEW: Actual seller earnings after all deductions
+    seller_earnings = models.DecimalField(max_digits=10, decimal_places=2,
+                                          default=0)  # total_amount - commission - cod_fee
 
     # Status
     order_status = models.CharField(max_length=15, choices=ORDER_STATUS, default='placed')
@@ -104,8 +109,13 @@ class Order(models.Model):
         # Commission = sum of (display_price - base_price) × quantity
         self.commission_amount = sum(item.commission_amount for item in items)
 
-        # Seller payout = sum of (base_price × quantity)
+        # Seller payout = sum of (base_price × quantity) - Base amount before coupon
         self.seller_payout_amount = sum(item.seller_amount for item in items)
+
+        # ✅ NEW: Calculate actual seller earnings (what seller receives after coupon)
+        # Seller Earnings = Total Amount - Platform Commission - COD Fee
+        # This means seller absorbs the coupon discount cost
+        self.seller_earnings = self.total_amount - self.commission_amount - self.cod_fee
 
         self.save()
 
@@ -119,7 +129,7 @@ class OrderItem(models.Model):
     product_name = models.CharField(max_length=255)
     base_price = models.DecimalField(max_digits=10, decimal_places=2)  # What seller gets per unit
     display_price = models.DecimalField(max_digits=10, decimal_places=2)  # What customer pays per unit
-    mrp = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # NEW: MRP snapshot
+    mrp = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # MRP snapshot
     commission_rate = models.DecimalField(max_digits=5, decimal_places=2)
 
     quantity = models.PositiveIntegerField(default=1)
