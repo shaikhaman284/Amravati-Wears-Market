@@ -1,4 +1,4 @@
-# orders/models.py - UPDATED
+# orders/models.py - COMPLETE UPDATED FILE
 
 from django.db import models
 from django.conf import settings
@@ -52,7 +52,7 @@ class Order(models.Model):
     seller_payout_amount = models.DecimalField(max_digits=10,
                                                decimal_places=2)  # Base seller amount (sum of base_price × quantity)
 
-    # ✅ NEW: Actual seller earnings after all deductions
+    # ✅ Actual seller earnings after all deductions (coupon absorbed by seller)
     seller_earnings = models.DecimalField(max_digits=10, decimal_places=2,
                                           default=0)  # total_amount - commission - cod_fee
 
@@ -84,6 +84,11 @@ class Order(models.Model):
         if not self.order_number:
             # Generate order number: ORD + timestamp + random
             self.order_number = f"ORD{uuid.uuid4().hex[:8].upper()}"
+
+        # ✅ Auto-calculate seller_earnings if not set
+        if not self.seller_earnings or self.seller_earnings == 0:
+            self.seller_earnings = self.total_amount - self.commission_amount - self.cod_fee
+
         super().save(*args, **kwargs)
 
     def calculate_totals(self):
@@ -112,11 +117,12 @@ class Order(models.Model):
         # Seller payout = sum of (base_price × quantity) - Base amount before coupon
         self.seller_payout_amount = sum(item.seller_amount for item in items)
 
-        # ✅ NEW: Calculate actual seller earnings (what seller receives after coupon)
+        # ✅ Calculate actual seller earnings (what seller receives after coupon)
         # Seller Earnings = Total Amount - Platform Commission - COD Fee
         # This means seller absorbs the coupon discount cost
         self.seller_earnings = self.total_amount - self.commission_amount - self.cod_fee
 
+        # ✅ Save all calculated values
         self.save()
 
 

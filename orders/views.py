@@ -1,4 +1,4 @@
-# orders/views.py - COMPLETE FILE WITH MRP SUPPORT
+# orders/views.py - COMPLETE FILE WITH MRP SUPPORT AND FIXED COUPON HANDLING
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -43,7 +43,7 @@ def create_order(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     cart_items = serializer.validated_data['cart_items']
-    coupon_code = serializer.validated_data.get('coupon_code', '').strip().upper()
+    coupon_code = serializer.validated_data.get('coupon_code', '').strip().upper() if serializer.validated_data.get('coupon_code') else ''
 
     try:
         # Validate cart items
@@ -69,7 +69,8 @@ def create_order(request):
         coupon = None
         coupon_discount = Decimal('0')
 
-        if coupon_code:
+        # ✅ FIX: Only process coupon if code is actually provided and not empty
+        if coupon_code and coupon_code.strip():
             try:
                 coupon = Coupon.objects.get(code=coupon_code, shop=shop)
 
@@ -346,6 +347,7 @@ def update_order_status(request, order_number):
 
     except Order.DoesNotExist:
         return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
