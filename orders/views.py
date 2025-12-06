@@ -347,7 +347,6 @@ def update_order_status(request, order_number):
     except Order.DoesNotExist:
         return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
 
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_seller_dashboard(request):
@@ -376,17 +375,18 @@ def get_seller_dashboard(request):
             created_at__date=date.today()
         ).count()
 
-        # Total earnings (delivered orders)
+        # ✅ CHANGED: Total earnings using seller_earnings (delivered orders)
+        # This now accounts for coupon discounts that seller absorbed
         total_earnings = Order.objects.filter(
             shop=shop,
             order_status='delivered'
-        ).aggregate(total=Sum('seller_payout_amount'))['total'] or 0
+        ).aggregate(total=Sum('seller_earnings'))['total'] or 0
 
-        # Pending earnings (confirmed + shipped orders)
+        # ✅ CHANGED: Pending earnings using seller_earnings (confirmed + shipped orders)
         pending_earnings = Order.objects.filter(
             shop=shop,
             order_status__in=['confirmed', 'shipped']
-        ).aggregate(total=Sum('seller_payout_amount'))['total'] or 0
+        ).aggregate(total=Sum('seller_earnings'))['total'] or 0
 
         # Recent orders
         recent_orders = Order.objects.filter(shop=shop).order_by('-created_at')[:5]
