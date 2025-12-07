@@ -20,13 +20,15 @@ class CategoryAdmin(admin.ModelAdmin):
     search_fields = ['name']
     prepopulated_fields = {'slug': ('name',)}
 
-
 @admin.register(Shop)
 class ShopAdmin(admin.ModelAdmin):
-    list_display = ['shop_name', 'owner', 'city', 'commission_rate', 'approval_status', 'created_at']
-    list_filter = ['approval_status', 'city', 'is_approved']
+    list_display = [
+        'shop_name', 'owner', 'city', 'commission_rate',
+        'approval_status', 'is_promoted', 'promotion_priority', 'created_at'
+    ]
+    list_filter = ['approval_status', 'city', 'is_approved', 'is_promoted']
     search_fields = ['shop_name', 'owner__name', 'owner__phone']
-    readonly_fields = ['created_at', 'updated_at']
+    readonly_fields = ['created_at', 'updated_at', 'promoted_at']
 
     fieldsets = (
         ('Shop Info', {
@@ -41,12 +43,17 @@ class ShopAdmin(admin.ModelAdmin):
         ('Approval', {
             'fields': ('approval_status', 'is_approved', 'rejection_reason')
         }),
+        ('Promotion', {
+            'fields': ('is_promoted', 'promotion_priority', 'promoted_at'),
+            'classes': ('collapse',),
+            'description': 'Promote this shop to show in homepage carousel'
+        }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at')
         }),
     )
 
-    actions = ['approve_shops', 'reject_shops']
+    actions = ['approve_shops', 'reject_shops', 'promote_shops', 'unpromote_shops']
 
     def approve_shops(self, request, queryset):
         """Approve selected shops"""
@@ -72,6 +79,33 @@ class ShopAdmin(admin.ModelAdmin):
 
     reject_shops.short_description = "❌ Reject selected shops"
 
+    def promote_shops(self, request, queryset):
+        """Promote selected shops to homepage carousel"""
+        from django.utils import timezone
+        updated = queryset.update(
+            is_promoted=True,
+            promoted_at=timezone.now()
+        )
+        self.message_user(
+            request,
+            f"⭐ {updated} shop(s) promoted successfully and will appear in homepage carousel!",
+            messages.SUCCESS
+        )
+        logger.info(f"Admin {request.user.name} promoted {updated} shops")
+
+    promote_shops.short_description = "⭐ Promote selected shops"
+
+    def unpromote_shops(self, request, queryset):
+        """Remove selected shops from homepage carousel"""
+        updated = queryset.update(is_promoted=False)
+        self.message_user(
+            request,
+            f"🚫 {updated} shop(s) unpromoted and removed from carousel.",
+            messages.WARNING
+        )
+        logger.info(f"Admin {request.user.name} unpromoted {updated} shops")
+
+    unpromote_shops.short_description = "🚫 Unpromote selected shops"
 
 @admin.register(NewsletterSubscriber)
 class NewsletterSubscriberAdmin(admin.ModelAdmin):

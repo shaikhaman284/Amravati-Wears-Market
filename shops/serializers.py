@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Shop, Category
 
+
 class CategorySerializer(serializers.ModelSerializer):
     subcategories = serializers.SerializerMethodField()
     parent_name = serializers.CharField(source='parent.name', read_only=True, allow_null=True)
@@ -13,6 +14,7 @@ class CategorySerializer(serializers.ModelSerializer):
         if obj.subcategories.exists():
             return CategorySerializer(obj.subcategories.filter(is_active=True), many=True).data
         return []
+
 
 class ShopSerializer(serializers.ModelSerializer):
     owner_name = serializers.CharField(source='owner.name', read_only=True)
@@ -32,6 +34,7 @@ class ShopSerializer(serializers.ModelSerializer):
     def get_product_count(self, obj):
         return obj.get_product_count()
 
+
 class ShopRegistrationSerializer(serializers.ModelSerializer):
     shop_image = serializers.URLField(required=False, allow_null=True)
 
@@ -48,6 +51,7 @@ class ShopRegistrationSerializer(serializers.ModelSerializer):
         if len(value) < 10:
             raise serializers.ValidationError("Invalid contact number")
         return value
+
 
 class ShopDetailSerializer(serializers.ModelSerializer):
     owner_name = serializers.CharField(source='owner.name', read_only=True)
@@ -71,3 +75,36 @@ class ShopDetailSerializer(serializers.ModelSerializer):
         from products.serializers import ProductListSerializer
         products = obj.products.filter(is_active=True).order_by('-created_at')[:6]
         return ProductListSerializer(products, many=True).data
+
+
+# NEW: Serializer for Promoted Shops Carousel
+class PromotedShopSerializer(serializers.ModelSerializer):
+    product_count = serializers.SerializerMethodField()
+    featured_products = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Shop
+        fields = [
+            'id', 'shop_name', 'shop_image', 'city',
+            'product_count', 'featured_products'
+        ]
+
+    def get_product_count(self, obj):
+        return obj.get_product_count()
+
+    def get_featured_products(self, obj):
+        """Get 3 featured products from this shop for carousel preview"""
+        products = obj.products.filter(
+            is_active=True,
+            stock_quantity__gt=0
+        ).order_by('-created_at')[:3]
+
+        return [
+            {
+                'id': product.id,
+                'name': product.name,
+                'image': product.image1,
+                'price': float(product.display_price),
+            }
+            for product in products
+        ]

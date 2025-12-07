@@ -212,3 +212,20 @@ def subscribe_newsletter(request):
             {'error': 'Failed to subscribe. Please try again.'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_promoted_shops(request):
+    """
+    Get promoted shops for homepage carousel
+    Returns shops with their featured products
+    """
+    promoted_shops = Shop.objects.filter(
+        is_promoted=True,
+        is_approved=True
+    ).order_by('-promotion_priority', '-promoted_at')[:10]
+
+    from .serializers import PromotedShopSerializer
+    serializer = PromotedShopSerializer(promoted_shops, many=True)
+    return Response(serializer.data)

@@ -9,15 +9,16 @@ urlpatterns = [
 
     # Public shop endpoints
     path('approved/', views.list_approved_shops, name='list_approved_shops'),
+    path('promoted/', views.get_promoted_shops, name='get_promoted_shops'),  # NEW
     path('<int:shop_id>/', views.get_shop_detail, name='get_shop_detail'),
 
     # Categories
     path('categories/', views.list_categories, name='list_categories'),
     path('categories/<int:category_id>/', views.get_category_detail, name='get_category_detail'),
-    
+
     # Platform stats
     path('stats/', views.get_platform_stats, name='get_platform_stats'),
-    
+
     # Newsletter
     path('newsletter/subscribe/', views.subscribe_newsletter, name='subscribe_newsletter'),
 ]

@@ -42,6 +42,21 @@ class Shop(models.Model):
     approval_status = models.CharField(max_length=10, choices=APPROVAL_STATUS, default='pending')
     rejection_reason = models.TextField(blank=True, null=True)
 
+    # NEW: Promotion fields for homepage carousel
+    is_promoted = models.BooleanField(
+        default=False,
+        help_text="Mark this shop as promoted to show in homepage carousel"
+    )
+    promotion_priority = models.IntegerField(
+        default=0,
+        help_text="Higher priority shops appear first in carousel (0-100)"
+    )
+    promoted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this shop was promoted"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -64,17 +79,17 @@ class SiteVisitor(models.Model):
     ip_address = models.GenericIPAddressField()
     user_agent = models.TextField(blank=True, null=True)
     visited_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'site_visitors'
         ordering = ['-visited_at']
         indexes = [
             models.Index(fields=['ip_address', 'visited_at']),
         ]
-    
+
     def __str__(self):
         return f"{self.ip_address} - {self.visited_at}"
-    
+
     @classmethod
     def get_unique_visitors_count(cls):
         """
@@ -82,7 +97,7 @@ class SiteVisitor(models.Model):
         """
         thirty_days_ago = timezone.now() - timedelta(days=30)
         return cls.objects.filter(visited_at__gte=thirty_days_ago).values('ip_address').distinct().count()
-    
+
     @classmethod
     def record_visit(cls, ip_address, user_agent=None):
         """
@@ -93,7 +108,7 @@ class SiteVisitor(models.Model):
             ip_address=ip_address,
             visited_at__gte=twenty_four_hours_ago
         ).exists()
-        
+
         if not recent_visit:
             cls.objects.create(ip_address=ip_address, user_agent=user_agent)
             return True
@@ -107,16 +122,16 @@ class NewsletterSubscriber(models.Model):
     email = models.EmailField(unique=True, db_index=True)
     is_active = models.BooleanField(default=True)
     subscribed_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'newsletter_subscribers'
         ordering = ['-subscribed_at']
         verbose_name = 'Newsletter Subscriber'
         verbose_name_plural = 'Newsletter Subscribers'
-    
+
     def __str__(self):
         return self.email
-    
+
     @classmethod
     def get_active_subscribers(cls):
         """
