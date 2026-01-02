@@ -40,6 +40,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     name = models.CharField(max_length=255)
     user_type = models.CharField(max_length=10, choices=USER_TYPE_CHOICES, default='customer')
     firebase_uid = models.CharField(max_length=128, blank=True, null=True)
+    fcm_token = models.CharField(max_length=255, blank=True, null=True)  # For push notifications
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)

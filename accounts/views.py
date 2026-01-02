@@ -134,6 +134,40 @@ def logout(request):
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(['POST'])
+def register_fcm_token(request):
+    """
+    Register FCM token for push notifications
+    
+    Request Body:
+    {
+        "fcm_token": "FCM device token"
+    }
+    """
+    fcm_token = request.data.get('fcm_token')
+    
+    if not fcm_token:
+        return Response(
+            {'error': 'FCM token is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        user = request.user
+        user.fcm_token = fcm_token
+        user.save()
+        
+        return Response({
+            'message': 'FCM token registered successfully',
+            'fcm_token': fcm_token
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to register FCM token: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
 # TEMPORARY TEST ENDPOINT - Remove in production
 @api_view(['POST'])
 @permission_classes([AllowAny])

@@ -15,6 +15,8 @@ from .serializers import (
     OrderDetailSerializer, OrderStatusUpdateSerializer
 )
 from .utils import calculate_order_totals, validate_cart_items
+from .notification_service import send_new_order_notification, send_order_cancelled_notification
+
 
 
 @api_view(['POST'])
@@ -180,6 +182,15 @@ def create_order(request):
                 )
                 coupon.times_used += 1
                 coupon.save()
+            
+            # Send push notification to seller
+            try:
+                send_new_order_notification(shop.owner, order)
+            except Exception as e:
+                # Log error but don't fail the order creation
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to send notification for order {order.order_number}: {e}")
 
         return Response({
             'message': 'Order placed successfully',
@@ -452,6 +463,15 @@ def cancel_customer_order(request, order_number):
             order.coupon.save()
 
         order.save()
+        
+        # Send push notification to seller
+        try:
+            send_order_cancelled_notification(order.shop.owner, order)
+        except Exception as e:
+            # Log error but don't fail the cancellation
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send cancellation notification for order {order.order_number}: {e}")
 
         return Response({
             'message': 'Order cancelled successfully',
